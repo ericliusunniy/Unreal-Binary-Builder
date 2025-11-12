@@ -201,7 +201,8 @@
 												<CheckBox x:Name="bWithServer" Content="Include Server" Margin="10" IsChecked="{Binding bWithServer}" ToolTip="Create dedicated server target." IsEnabled="{Binding SupportServerClientTargets, BindingGroupName=EngineChanged, Mode=OneWay, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type local1:MainWindow}}}"/>
 												<CheckBox x:Name="bWithClient" Content="Include Client" Margin="10" IsChecked="{Binding bWithClient}" ToolTip="Create client target." IsEnabled="{Binding SupportServerClientTargets, BindingGroupName=EngineChanged, Mode=OneWay, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type local1:MainWindow}}}"/>
 												<CheckBox x:Name="bCompileDatasmithPlugins" Content="Include Datasmith" Margin="10" IsChecked="{Binding bCompileDatasmithPlugins}" ToolTip="If Datasmith plugins should be compiled." IsEnabled="{Binding IsEngineSelection425OrAbove, BindingGroupName=EngineChanged, Mode=OneWay, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type local1:MainWindow}}}"/>
-												<CheckBox x:Name="bVS2019" Content="Use 2019 Compiler" Margin="10" IsChecked="{Binding bVS2019}" ToolTip="Use Visual Studio 2019 to build Windows targets. By default, Visual Studio 2017 is used for maximum compatibility." IsEnabled="{Binding SupportVisualStudio2019, BindingGroupName=EngineChanged, Mode=OneWay, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type local1:MainWindow}}}"/>
+												<CheckBox x:Name="bVS2019" Content="Use 2019 Compiler" Margin="10" IsChecked="{Binding bVS2019}" Checked="CompilerVersion_Checked" Unchecked="CompilerVersion_Checked" ToolTip="Use Visual Studio 2019 to build Windows targets. By default, Visual Studio 2017 is used for maximum compatibility." IsEnabled="{Binding SupportVisualStudio2019, BindingGroupName=EngineChanged, Mode=OneWay, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type local1:MainWindow}}}"/>
+												<CheckBox x:Name="bVS2022" Content="Use 2022 Compiler" Margin="10" IsChecked="{Binding bVS2022}" Checked="CompilerVersion_Checked" Unchecked="CompilerVersion_Checked" ToolTip="Use Visual Studio 2022 to build Windows targets." IsEnabled="{Binding SupportVisualStudio2022, BindingGroupName=EngineChanged, Mode=OneWay, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type local1:MainWindow}}}"/>
 											</WrapPanel>
 											<GroupBox Header="Shutdown Settings" Style="{StaticResource GroupBoxOriginal}" Margin="10">
 												<WrapPanel>
@@ -275,7 +276,8 @@
 									</Grid>
 
 									<st:StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Width="400">
-										<CheckBox x:Name="bUse2019Compiler" Content="Use 2019 Compiler" HorizontalAlignment="Left" st:StackPanel.Fill="Fill"/>
+										<CheckBox x:Name="bUse2019Compiler" Content="Use 2019 Compiler" HorizontalAlignment="Left" Checked="PluginCompiler_Checked" Unchecked="PluginCompiler_Checked" st:StackPanel.Fill="Fill"/>
+										<CheckBox x:Name="bUse2022Compiler" Content="Use 2022 Compiler" HorizontalAlignment="Left" Margin="10,0,0,0" Checked="PluginCompiler_Checked" Unchecked="PluginCompiler_Checked" />
 										<Button x:Name="PluginQueueBtn" Content="Queue Build" Style="{StaticResource ButtonDashedPrimary}" HorizontalAlignment="Right" Click="PluginQueueBtn_Click"/>
 									</st:StackPanel>
 

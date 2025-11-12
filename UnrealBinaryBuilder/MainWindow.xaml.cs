@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -29,6 +30,17 @@ namespace UnrealBinaryBuilder
 		public static readonly string AUTOMATION_TOOL_LAUNCHER_NAME = $"{AUTOMATION_TOOL_NAME}Launcher";
 		public static readonly string DEFAULT_BUILD_XML_FILE = "Engine/Build/InstalledEngineBuild.xml";
 		public static bool IsUnrealEngine5 { get; private set; } = false;
+
+		private static readonly string[] VisualStudioEditions = new[] { "Enterprise", "Professional", "Community", "BuildTools", "Preview" };
+		private static readonly Dictionary<int, string> MsBuildPathsByMajorVersion = new Dictionary<int, string>();
+		private static bool bVisualStudioDetectionAttempted = false;
+		private static readonly object VisualStudioDetectionLock = new object();
+
+		public static bool VisualStudio2017Available { get; private set; } = false;
+		public static bool VisualStudio2019Available { get; private set; } = false;
+		public static bool VisualStudio2022Available { get; private set; } = false;
+		public static int LatestVisualStudioMajorVersion { get; private set; } = 0;
+		public static string LatestMsBuildPath { get; private set; } = null;
 
 		private static string EngineVersionMajor, EngineVersionMinor, EngineVersionPatch = null;
 		public static string GetProductVersionString()
@@ -51,8 +63,292 @@ namespace UnrealBinaryBuilder
 
 		public static string GetMsBuildPath()
 		{
-			string ProgramFilesx86Path = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
-			return Path.Combine(ProgramFilesx86Path, "Microsoft Visual Studio", "2019", "Community", "MSBuild", "Current", "Bin", "MSBuild.exe");
+			EnsureVisualStudioInformation();
+
+			if (string.IsNullOrEmpty(LatestMsBuildPath) == false && File.Exists(LatestMsBuildPath))
+			{
+				return LatestMsBuildPath;
+			}
+
+			string fallback2019 = TryFindMsBuildInKnownLocations("2019");
+			if (fallback2019 != null)
+			{
+				return fallback2019;
+			}
+
+			string fallback2017 = TryFindMsBuildInKnownLocations("2017");
+			return fallback2017;
+		}
+
+		public static bool TryGetMsBuildPathForVersion(int majorVersion, out string msBuildPath)
+		{
+			EnsureVisualStudioInformation();
+			return MsBuildPathsByMajorVersion.TryGetValue(majorVersion, out msBuildPath);
+		}
+
+		public static bool HasVisualStudioMajorVersion(int majorVersion)
+		{
+			EnsureVisualStudioInformation();
+			return MsBuildPathsByMajorVersion.ContainsKey(majorVersion);
+		}
+
+		private static void EnsureVisualStudioInformation()
+		{
+			if (bVisualStudioDetectionAttempted)
+			{
+				return;
+			}
+
+			lock (VisualStudioDetectionLock)
+			{
+				if (bVisualStudioDetectionAttempted)
+				{
+					return;
+				}
+
+				RefreshVisualStudioInformation();
+				bVisualStudioDetectionAttempted = true;
+			}
+		}
+
+		private static void RefreshVisualStudioInformation()
+		{
+			MsBuildPathsByMajorVersion.Clear();
+			VisualStudio2017Available = false;
+			VisualStudio2019Available = false;
+			VisualStudio2022Available = false;
+			LatestVisualStudioMajorVersion = 0;
+			LatestMsBuildPath = null;
+
+			foreach (VsWhereInstallation installation in QueryVisualStudioInstallations().OrderByDescending(inst => inst.installationVersion))
+			{
+				if (string.IsNullOrWhiteSpace(installation.installationPath))
+				{
+					continue;
+				}
+
+				string msbuildPath = BuildMsBuildPathFromInstallation(installation.installationPath);
+				if (string.IsNullOrEmpty(msbuildPath))
+				{
+					continue;
+				}
+
+				int majorVersion = GetMajorVersionFromInstallation(installation.installationVersion, installation.installationPath);
+				if (majorVersion == 0)
+				{
+					continue;
+				}
+
+				RecordVisualStudioInstallation(majorVersion, msbuildPath);
+			}
+
+			if (string.IsNullOrEmpty(LatestMsBuildPath))
+			{
+				TryFindMsBuildInKnownLocations("2022", "2019", "2017");
+			}
+		}
+
+		private static IEnumerable<VsWhereInstallation> QueryVisualStudioInstallations()
+		{
+			List<VsWhereInstallation> installations = new List<VsWhereInstallation>();
+			try
+			{
+				string programFilesx86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
+				if (string.IsNullOrEmpty(programFilesx86))
+				{
+					return installations;
+				}
+
+				string vsWhereExecutable = Path.Combine(programFilesx86, "Microsoft Visual Studio", "Installer", "vswhere.exe");
+				if (File.Exists(vsWhereExecutable) == false)
+				{
+					return installations;
+				}
+
+				ProcessStartInfo psi = new ProcessStartInfo
+				{
+					FileName = vsWhereExecutable,
+					Arguments = "-all -products * -requires Microsoft.Component.MSBuild -format json",
+					CreateNoWindow = true,
+					UseShellExecute = false,
+					RedirectStandardOutput = true,
+					RedirectStandardError = true
+				};
+
+				using (Process process = Process.Start(psi))
+				{
+					if (process != null)
+					{
+						string output = process.StandardOutput.ReadToEnd();
+						process.WaitForExit();
+						if (string.IsNullOrWhiteSpace(output) == false)
+						{
+							installations = JsonConvert.DeserializeObject<List<VsWhereInstallation>>(output);
+						}
+					}
+				}
+			}
+			catch (Exception)
+			{
+				// Ignore detection errors. Fallback logic will handle missing data.
+			}
+
+			return installations ?? new List<VsWhereInstallation>();
+		}
+
+		private static void RecordVisualStudioInstallation(int majorVersion, string msbuildPath)
+		{
+			if (string.IsNullOrEmpty(msbuildPath) || File.Exists(msbuildPath) == false)
+			{
+				return;
+			}
+
+			MsBuildPathsByMajorVersion[majorVersion] = msbuildPath;
+
+			if (majorVersion >= 17)
+			{
+				VisualStudio2022Available = true;
+			}
+			else if (majorVersion == 16)
+			{
+				VisualStudio2019Available = true;
+			}
+			else if (majorVersion == 15)
+			{
+				VisualStudio2017Available = true;
+			}
+
+			if (LatestMsBuildPath == null || majorVersion > LatestVisualStudioMajorVersion)
+			{
+				LatestVisualStudioMajorVersion = majorVersion;
+				LatestMsBuildPath = msbuildPath;
+			}
+		}
+
+		private static string BuildMsBuildPathFromInstallation(string installationPath)
+		{
+			if (string.IsNullOrEmpty(installationPath))
+			{
+				return null;
+			}
+
+			string candidate = Path.Combine(installationPath, "MSBuild", "Current", "Bin", "MSBuild.exe");
+			if (File.Exists(candidate))
+			{
+				return candidate;
+			}
+
+			candidate = Path.Combine(installationPath, "MSBuild", "Current", "Bin", "amd64", "MSBuild.exe");
+			if (File.Exists(candidate))
+			{
+				return candidate;
+			}
+
+			candidate = Path.Combine(installationPath, "MSBuild", "15.0", "Bin", "MSBuild.exe");
+			if (File.Exists(candidate))
+			{
+				return candidate;
+			}
+
+			return null;
+		}
+
+		private static int GetMajorVersionFromInstallation(string installationVersion, string installationPath)
+		{
+			if (string.IsNullOrWhiteSpace(installationVersion) == false)
+			{
+				string[] split = installationVersion.Split('.');
+				if (split.Length > 0 && int.TryParse(split[0], out int parsedMajor))
+				{
+					return parsedMajor;
+				}
+			}
+
+			if (string.IsNullOrEmpty(installationPath) == false)
+			{
+				if (installationPath.Contains($"{Path.DirectorySeparatorChar}2022") || installationPath.Contains("/2022"))
+				{
+					return 17;
+				}
+
+				if (installationPath.Contains($"{Path.DirectorySeparatorChar}2019") || installationPath.Contains("/2019"))
+				{
+					return 16;
+				}
+
+				if (installationPath.Contains($"{Path.DirectorySeparatorChar}2017") || installationPath.Contains("/2017"))
+				{
+					return 15;
+				}
+			}
+
+			return 0;
+		}
+
+		private static string TryFindMsBuildInKnownLocations(params string[] yearFolders)
+		{
+			string programFilesx86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
+			if (string.IsNullOrEmpty(programFilesx86))
+			{
+				return null;
+			}
+
+			foreach (string year in yearFolders)
+			{
+				if (string.IsNullOrWhiteSpace(year))
+				{
+					continue;
+				}
+
+				string vsBasePath = Path.Combine(programFilesx86, "Microsoft Visual Studio", year);
+				if (Directory.Exists(vsBasePath) == false)
+				{
+					continue;
+				}
+
+				foreach (string edition in VisualStudioEditions)
+				{
+					string editionPath = Path.Combine(vsBasePath, edition);
+					if (Directory.Exists(editionPath) == false)
+					{
+						continue;
+					}
+
+					string msbuildPath = BuildMsBuildPathFromInstallation(editionPath);
+					if (string.IsNullOrEmpty(msbuildPath) == false)
+					{
+						int majorVersion = MapYearToMajorVersion(year);
+						if (majorVersion > 0)
+						{
+							RecordVisualStudioInstallation(majorVersion, msbuildPath);
+							return msbuildPath;
+						}
+					}
+				}
+			}
+
+			return null;
+		}
+
+		private static int MapYearToMajorVersion(string year)
+		{
+			switch (year)
+			{
+				case "2022":
+					return 17;
+				case "2019":
+					return 16;
+				case "2017":
+					return 15;
+				default:
+					return 0;
+			}
+		}
+
+		private class VsWhereInstallation
+		{
+			public string installationPath { get; set; }
+			public string installationVersion { get; set; }
 		}
 
 		public static string GetEngineVersion(string BaseEnginePath)
@@ -190,6 +486,7 @@ namespace UnrealBinaryBuilder
 		private DownloadDialog downloadDialogWindow = null;
 		private static UBBUpdater unrealBinaryBuilderUpdater = null;
 		private bool bUpdateAvailable = false;
+		private bool bMissingVS2022WarningShown = false;
 
 		public bool AutomationExePathPathIsValid => File.Exists(AutomationExePath);
 
@@ -223,7 +520,7 @@ namespace UnrealBinaryBuilder
 			SettingsJSON = BuilderSettings.GetSettingsFile(true);
 			BuilderSettings.LoadInitialValues();
 			DataContext = SettingsJSON;
-			bUse2019Compiler.IsEnabled = false;
+			InitializeVisualStudioPreferences();
 
 			if (Plugins.GetInstalledEngines() == null)
 			{
@@ -749,6 +1046,8 @@ namespace UnrealBinaryBuilder
 				}
 			}
 
+			UpdateCompilerOptions();
+
 			return bRequiredFilesExist;
 		}
 
@@ -1027,9 +1326,17 @@ namespace UnrealBinaryBuilder
 				CommandLineArgs += string.Format(" -set:CompileDatasmithPlugins={0}", GetConditionalString(bCompileDatasmithPlugins.IsChecked));
 			}
 
+			bool useVS2022 = SupportVisualStudio2022 && bVS2022.IsChecked == true;
+			bool useVS2019 = SupportVisualStudio2019 && bVS2019.IsChecked == true && useVS2022 == false;
+
+			if (SupportVisualStudio2022)
+			{
+				CommandLineArgs += string.Format(" -set:VS2022={0}", GetConditionalString(useVS2022));
+			}
+
 			if (SupportVisualStudio2019)
 			{
-				CommandLineArgs += string.Format(" -set:VS2019={0}", GetConditionalString(bVS2019.IsChecked));
+				CommandLineArgs += string.Format(" -set:VS2019={0}", GetConditionalString(useVS2019));
 			}
 
 			if (SupportServerClientTargets)
@@ -1248,7 +1555,126 @@ namespace UnrealBinaryBuilder
 
 		public bool SupportConsoles => GetEngineValue() <= 4.24;
 
-		public bool SupportVisualStudio2019 => IsUnrealEngine4() && IsEngineSelection425OrAbove;
+		public bool SupportVisualStudio2019
+		{
+			get
+			{
+				double engineValue = GetEngineValue();
+				bool isUE4WithSupport = IsUnrealEngine4() && IsEngineSelection425OrAbove && UnrealBinaryBuilderHelpers.VisualStudio2019Available;
+				bool isUE5Fallback = engineValue >= 5.0 && UnrealBinaryBuilderHelpers.VisualStudio2022Available == false && UnrealBinaryBuilderHelpers.VisualStudio2019Available;
+				return isUE4WithSupport || isUE5Fallback;
+			}
+		}
+
+		public bool SupportVisualStudio2022 => GetEngineValue() >= 5.0 && UnrealBinaryBuilderHelpers.VisualStudio2022Available;
+
+		private void InitializeVisualStudioPreferences()
+		{
+			// Force a detection so availability flags are populated.
+			UnrealBinaryBuilderHelpers.GetMsBuildPath();
+			UpdateCompilerOptions();
+			UpdatePluginCompilerOptions();
+		}
+
+		private void UpdateCompilerOptions()
+		{
+			if (bVS2019 == null || bVS2022 == null)
+			{
+				return;
+			}
+
+			bool supportVS2022 = SupportVisualStudio2022;
+			bool supportVS2019 = SupportVisualStudio2019;
+
+			bVS2022.IsEnabled = supportVS2022;
+			bVS2019.IsEnabled = supportVS2019;
+
+			if (GetEngineValue() >= 5.0 && UnrealBinaryBuilderHelpers.VisualStudio2022Available == false && bMissingVS2022WarningShown == false)
+			{
+				bMissingVS2022WarningShown = true;
+				if (UnrealBinaryBuilderHelpers.VisualStudio2019Available)
+				{
+					ShowToastMessage("未检测到 Visual Studio 2022。将尝试使用 Visual Studio 2019 继续编译。", LogViewer.EMessageType.Warning);
+				}
+				else
+				{
+					ShowToastMessage("未检测到 Visual Studio 2022 或 Visual Studio 2019。请安装受支持的编译器后重试。", LogViewer.EMessageType.Error);
+				}
+			}
+
+			if (supportVS2022 == false && bVS2022.IsChecked == true)
+			{
+				bVS2022.IsChecked = false;
+			}
+
+			if (supportVS2019 == false && bVS2019.IsChecked == true)
+			{
+				bVS2019.IsChecked = false;
+			}
+
+			if (supportVS2022 && bVS2022.IsChecked != true && bVS2019.IsChecked != true)
+			{
+				bVS2022.IsChecked = true;
+			}
+			else if (supportVS2019 && bVS2019.IsChecked != true && bVS2022.IsChecked != true)
+			{
+				bVS2019.IsChecked = true;
+			}
+		}
+
+		private void UpdatePluginCompilerOptions()
+		{
+			if (PluginEngineVersionSelection == null || bUse2019Compiler == null || bUse2022Compiler == null)
+			{
+				return;
+			}
+
+			double engineValue = GetSelectedPluginEngineValue();
+
+			bool isUE5OrAbove = engineValue >= 5.0;
+			bool support2022 = isUE5OrAbove && UnrealBinaryBuilderHelpers.VisualStudio2022Available;
+			bool support2019 = (engineValue >= 4.25 && engineValue < 5.0 && UnrealBinaryBuilderHelpers.VisualStudio2019Available) ||
+							   (isUE5OrAbove && support2022 == false && UnrealBinaryBuilderHelpers.VisualStudio2019Available);
+
+			bUse2019Compiler.IsEnabled = support2019;
+			bUse2022Compiler.IsEnabled = support2022;
+
+			if (support2022 == false && bUse2022Compiler.IsChecked == true)
+			{
+				bUse2022Compiler.IsChecked = false;
+			}
+
+			if (support2019 == false && bUse2019Compiler.IsChecked == true)
+			{
+				bUse2019Compiler.IsChecked = false;
+			}
+
+			if (support2022 && bUse2022Compiler.IsChecked != true && bUse2019Compiler.IsChecked != true)
+			{
+				bUse2022Compiler.IsChecked = true;
+			}
+			else if (support2019 && bUse2019Compiler.IsChecked != true && bUse2022Compiler.IsChecked != true)
+			{
+				bUse2019Compiler.IsChecked = true;
+			}
+		}
+
+		private double GetSelectedPluginEngineValue()
+		{
+			if (PluginEngineVersionSelection == null || PluginEngineVersionSelection.SelectedValue == null)
+			{
+				return 0;
+			}
+
+			string selectedValue = PluginEngineVersionSelection.SelectedValue.ToString();
+			Match match = Regex.Match(selectedValue, @"\d+(\.\d+)?");
+			if (match.Success && double.TryParse(match.Value, out double parsedValue))
+			{
+				return parsedValue;
+			}
+
+			return 0;
+		}
 
 		public bool IsEngineSelection425OrAbove => GetEngineValue() >= 4.25;
 
@@ -1280,6 +1706,46 @@ namespace UnrealBinaryBuilder
 			GameAnalyticsCSharp.AddDesignEvent("CommandLine:CopyToClipboard");
 			Clipboard.SetDataObject(PrepareCommandline());
 			HandyControl.Controls.MessageBox.Show("Command line copied to clipboard!");
+		}
+
+		private void CompilerVersion_Checked(object sender, RoutedEventArgs e)
+		{
+			if (sender == bVS2022 && bVS2022.IsChecked == true)
+			{
+				if (bVS2019.IsChecked == true)
+				{
+					bVS2019.IsChecked = false;
+				}
+			}
+			else if (sender == bVS2019 && bVS2019.IsChecked == true)
+			{
+				if (bVS2022.IsChecked == true)
+				{
+					bVS2022.IsChecked = false;
+				}
+			}
+
+			UpdateCompilerOptions();
+		}
+
+		private void PluginCompiler_Checked(object sender, RoutedEventArgs e)
+		{
+			if (sender == bUse2022Compiler && bUse2022Compiler.IsChecked == true)
+			{
+				if (bUse2019Compiler.IsChecked == true)
+				{
+					bUse2019Compiler.IsChecked = false;
+				}
+			}
+			else if (sender == bUse2019Compiler && bUse2019Compiler.IsChecked == true)
+			{
+				if (bUse2022Compiler.IsChecked == true)
+				{
+					bUse2022Compiler.IsChecked = false;
+				}
+			}
+
+			UpdatePluginCompilerOptions();
 		}
 
 		private void SetZipPathLocation_Click(object sender, RoutedEventArgs e)
@@ -1448,6 +1914,31 @@ namespace UnrealBinaryBuilder
 			return null;
 		}
 
+		private string GetSelectedPluginCompilerArgument()
+		{
+			if (bUse2022Compiler != null && bUse2022Compiler.IsEnabled && bUse2022Compiler.IsChecked == true)
+			{
+				return "-VS2022";
+			}
+
+			if (bUse2019Compiler != null && bUse2019Compiler.IsEnabled && bUse2019Compiler.IsChecked == true)
+			{
+				return "-VS2019";
+			}
+
+			if (bUse2022Compiler != null && bUse2022Compiler.IsEnabled)
+			{
+				return "-VS2022";
+			}
+
+			if (bUse2019Compiler != null && bUse2019Compiler.IsEnabled)
+			{
+				return "-VS2019";
+			}
+
+			return "-VS2017";
+		}
+
 		private string BuildPlugin(PluginCard pluginCard)
 		{
 			if (bIsBuilding == false)
@@ -1527,8 +2018,8 @@ namespace UnrealBinaryBuilder
 					}
 				}
 
-				bool bCanUse2019Compiler = bUse2019Compiler.IsEnabled && (bool)bUse2019Compiler.IsChecked;
-				PluginQueues.Children.Add(new PluginCard(this, PluginPath.Text, PluginDestinationPath.Text, PluginBuildEnginePath[PluginEngineVersionSelection.SelectedIndex], (bool)bCanUse2019Compiler, TargetPlatformsList, (bool)PluginZip.IsChecked, PluginZipPath.Text, (bool)PluginZipForMarketplace.IsChecked));
+				string selectedCompiler = GetSelectedPluginCompilerArgument();
+				PluginQueues.Children.Add(new PluginCard(this, PluginPath.Text, PluginDestinationPath.Text, PluginBuildEnginePath[PluginEngineVersionSelection.SelectedIndex], selectedCompiler, TargetPlatformsList, (bool)PluginZip.IsChecked, PluginZipPath.Text, (bool)PluginZipForMarketplace.IsChecked));
 				PluginQueueBtn.IsEnabled = false;
 				PluginPath.Text = "";
 				PluginDestinationPath.Text = "";
@@ -1643,11 +2134,7 @@ namespace UnrealBinaryBuilder
 
 		private void PluginEngineVersionSelection_SelectionChanged(object sender, SelectionChangedEventArgs e)
 		{
-			try
-			{
-				bUse2019Compiler.IsEnabled = Convert.ToDouble(PluginEngineVersionSelection.SelectedValue) >= 4.25;
-			}
-			catch (Exception) {}
+			UpdatePluginCompilerOptions();
 		}
 
 		private void PluginZipDestinationPathBrowse_Click(object sender, RoutedEventArgs e)
@@ -1804,6 +2291,9 @@ namespace UnrealBinaryBuilder
 					}
 				}
 			}
+
+			UpdateCompilerOptions();
+			UpdatePluginCompilerOptions();
 		}
 	}
 }

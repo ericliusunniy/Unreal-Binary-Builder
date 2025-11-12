@@ -18,20 +18,23 @@ namespace UnrealBinaryBuilder.UserControls
 		public readonly string RunUATFile = null;
 
 		private readonly List<string> TargetPlatforms = null;
-		private readonly bool IsUsing2019Compiler = false;
+		private readonly string CompilerArgument = "-VS2017";
 		private bool bBuildFinished = false;
 		private readonly bool bCanZip = false;
 		private readonly bool bZipForMarketplaceZip = false;
 		private string TargetZipPath = null;
 		private readonly MainWindow mainWindow = null;
 
-		public PluginCard(MainWindow _mainWindow, string InPluginPath, string InDestination, string InEnginePath, bool bUse2019Compiler, List<string> InTargetPlatformsList, bool bZipBuild, string ZipPath, bool bForMarketplace)
+		public PluginCard(MainWindow _mainWindow, string InPluginPath, string InDestination, string InEnginePath, string compilerArgument, List<string> InTargetPlatformsList, bool bZipBuild, string ZipPath, bool bForMarketplace)
 		{
 			InitializeComponent();
 			mainWindow = _mainWindow;
 			TargetPlatforms = InTargetPlatformsList;
-			IsUsing2019Compiler = bUse2019Compiler;
-			CompilerText.Text = IsUsing2019Compiler ? "2019" : "2017";
+			if (string.IsNullOrWhiteSpace(compilerArgument) == false)
+			{
+				CompilerArgument = compilerArgument;
+			}
+			CompilerText.Text = CompilerArgument.Replace("-VS", "");
 			PluginPath = InPluginPath;
 			DestinationPath = InDestination;
 			RunUATFile = Path.Combine(InEnginePath, "Engine", "Build", "BatchFiles", "RunUAT.bat");
@@ -126,7 +129,7 @@ namespace UnrealBinaryBuilder.UserControls
 
 		public string GetCompiler()
 		{
-			return IsUsing2019Compiler ? "-VS2019" : "-VS2017";
+			return CompilerArgument;
 		}
 
 		private void CancelBtn_Click(object sender, RoutedEventArgs e)

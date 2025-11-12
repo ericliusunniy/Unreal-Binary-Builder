@@ -63,6 +63,7 @@ namespace UnrealBinaryBuilder.Classes
 		public bool bWithClient { get; set; }
 		public bool bCompileDatasmithPlugins { get; set; }
 		public bool bVS2019 { get; set; }
+		public bool bVS2022 { get; set; }
 		public bool bShutdownPC { get; set; }
 		public bool bShutdownIfBuildSuccess { get; set; }
 		public bool bContinueToEngineBuild { get; set; }
@@ -175,6 +176,7 @@ namespace UnrealBinaryBuilder.Classes
 			BSJ.bWithClient = false;
 			BSJ.bCompileDatasmithPlugins = false;
 			BSJ.bVS2019 = false;
+			BSJ.bVS2022 = true;
 			BSJ.bShutdownPC = false;
 			BSJ.bShutdownIfBuildSuccess = false;
 			BSJ.bContinueToEngineBuild = true;
@@ -215,6 +217,10 @@ namespace UnrealBinaryBuilder.Classes
 			{
 				string JsonOutput = File.ReadAllText(PROGRAM_SETTINGS_PATH);
 				ReturnValue = JsonConvert.DeserializeObject<BuilderSettingsJson>(JsonOutput);
+				if (ReturnValue != null && ReturnValue.bVS2019 == false && ReturnValue.bVS2022 == false)
+				{
+					ReturnValue.bVS2022 = true;
+				}
 				if (bLog)
 				{
 					LogEntry logEntry = new LogEntry();
@@ -305,6 +311,10 @@ namespace UnrealBinaryBuilder.Classes
 			BSJ.bWithClient = (bool)mainWindow.bWithClient.IsChecked;
 			BSJ.bCompileDatasmithPlugins = (bool)mainWindow.bCompileDatasmithPlugins.IsChecked;
 			BSJ.bVS2019 = (bool)mainWindow.bVS2019.IsChecked;
+			if (mainWindow.bVS2022 != null)
+			{
+				BSJ.bVS2022 = (bool)mainWindow.bVS2022.IsChecked;
+			}
 			BSJ.bShutdownPC = (bool)mainWindow.bShutdownWindows.IsChecked;
 			BSJ.bShutdownIfBuildSuccess = (bool)mainWindow.bShutdownIfSuccess.IsChecked;
 			BSJ.bContinueToEngineBuild = (bool)mainWindow.bContinueToEngineBuild.IsChecked;
