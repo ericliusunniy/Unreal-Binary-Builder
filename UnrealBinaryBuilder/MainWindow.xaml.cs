@@ -1566,7 +1566,7 @@ namespace UnrealBinaryBuilder
 			}
 		}
 
-		public bool SupportVisualStudio2022 => GetEngineValue() >= 5.0 && UnrealBinaryBuilderHelpers.VisualStudio2022Available;
+		public bool SupportVisualStudio2022 => GetEngineValue() >= 4.27 && UnrealBinaryBuilderHelpers.VisualStudio2022Available;
 
 		private void InitializeVisualStudioPreferences()
 		{
@@ -1589,7 +1589,7 @@ namespace UnrealBinaryBuilder
 			bVS2022.IsEnabled = supportVS2022;
 			bVS2019.IsEnabled = supportVS2019;
 
-			if (GetEngineValue() >= 5.0 && UnrealBinaryBuilderHelpers.VisualStudio2022Available == false && bMissingVS2022WarningShown == false)
+			if (GetEngineValue() >= 4.27 && UnrealBinaryBuilderHelpers.VisualStudio2022Available == false && bMissingVS2022WarningShown == false)
 			{
 				bMissingVS2022WarningShown = true;
 				if (UnrealBinaryBuilderHelpers.VisualStudio2019Available)
@@ -1631,10 +1631,11 @@ namespace UnrealBinaryBuilder
 
 			double engineValue = GetSelectedPluginEngineValue();
 
+			bool isUE427OrAbove = engineValue >= 4.27;
 			bool isUE5OrAbove = engineValue >= 5.0;
-			bool support2022 = isUE5OrAbove && UnrealBinaryBuilderHelpers.VisualStudio2022Available;
+			bool support2022 = isUE427OrAbove && UnrealBinaryBuilderHelpers.VisualStudio2022Available;
 			bool support2019 = (engineValue >= 4.25 && engineValue < 5.0 && UnrealBinaryBuilderHelpers.VisualStudio2019Available) ||
-							   (isUE5OrAbove && support2022 == false && UnrealBinaryBuilderHelpers.VisualStudio2019Available);
+							   (isUE427OrAbove && support2022 == false && UnrealBinaryBuilderHelpers.VisualStudio2019Available);
 
 			bUse2019Compiler.IsEnabled = support2019;
 			bUse2022Compiler.IsEnabled = support2022;
