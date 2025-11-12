@@ -21,8 +21,8 @@ namespace UnrealBinaryBuilder.UserControls
 		private void SubmitBtn_Click(object sender, System.Windows.RoutedEventArgs e)
 		{
 			string CommentText = $"{Comment.Text}\n\nExceptionDetails ->\n{StackTraceText.Text}";
-			UserFeedback userFeedback = new UserFeedback(CurrentSentryId, Username.Text, Email.Text, CommentText);
-			SentrySdk.CaptureUserFeedback(userFeedback);
+			SentryFeedback feedback = new SentryFeedback(CurrentSentryId.ToString(), Username.Text, Email.Text, CommentText);
+			SentrySdk.CaptureFeedback(feedback);
 			HandyControl.Controls.MessageBox.Success("Thank you for submitting the crash report!");
 			Close();
 		}

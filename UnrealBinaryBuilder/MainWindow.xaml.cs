@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -723,22 +724,31 @@ namespace UnrealBinaryBuilder
 				Directory.CreateDirectory(TargetDownloadDirectory);
 			}
 
-			using (Ionic.Zip.ZipFile zip = new Ionic.Zip.ZipFile(e.UpdateFilePath))
+			using (System.IO.Compression.ZipArchive archive = System.IO.Compression.ZipFile.OpenRead(e.UpdateFilePath))
 			{
-				zip.ExtractProgress += (o, args) =>
+				foreach (System.IO.Compression.ZipArchiveEntry entry in archive.Entries)
 				{
-					if (args.EventType == Ionic.Zip.ZipProgressEventType.Extracting_AfterExtractAll)
+					string destinationPath = Path.Combine(TargetDownloadDirectory, entry.FullName);
+					string destinationDir = Path.GetDirectoryName(destinationPath);
+					
+					if (!string.IsNullOrEmpty(destinationDir) && !Directory.Exists(destinationDir))
 					{
-						GameAnalyticsCSharp.AddDesignEvent($"Update:Install:{downloadDialogWindow.VersionText}");
-						unrealBinaryBuilderUpdater.UpdateDownloadStartedEventHandler -= DownloadUpdateProgressStart;
-						unrealBinaryBuilderUpdater.UpdateDownloadFinishedEventHandler -= DownloadUpdateProgressFinish;
-						unrealBinaryBuilderUpdater.UpdateProgressEventHandler -= DownloadUpdateProgress;
-						unrealBinaryBuilderUpdater.CloseApplicationEventHandler += CloseApplication;
-						unrealBinaryBuilderUpdater.InstallUpdate();
-						Process.Start("explorer.exe", TargetDownloadDirectory);
+						Directory.CreateDirectory(destinationDir);
 					}
-				};
-				zip.ExtractAll(TargetDownloadDirectory, Ionic.Zip.ExtractExistingFileAction.OverwriteSilently);
+					
+					if (!string.IsNullOrEmpty(entry.Name))
+					{
+						entry.ExtractToFile(destinationPath, overwrite: true);
+					}
+				}
+
+				GameAnalyticsCSharp.AddDesignEvent($"Update:Install:{downloadDialogWindow.VersionText}");
+				unrealBinaryBuilderUpdater.UpdateDownloadStartedEventHandler -= DownloadUpdateProgressStart;
+				unrealBinaryBuilderUpdater.UpdateDownloadFinishedEventHandler -= DownloadUpdateProgressFinish;
+				unrealBinaryBuilderUpdater.UpdateProgressEventHandler -= DownloadUpdateProgress;
+				unrealBinaryBuilderUpdater.CloseApplicationEventHandler += CloseApplication;
+				unrealBinaryBuilderUpdater.InstallUpdate();
+				Process.Start("explorer.exe", TargetDownloadDirectory);
 			}
 		}
 
