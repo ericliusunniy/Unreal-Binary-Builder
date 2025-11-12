@@ -179,18 +179,33 @@ namespace UnrealBinaryBuilder
 				{
 					if (process != null)
 					{
-						string output = process.StandardOutput.ReadToEnd();
-						process.WaitForExit();
-						if (string.IsNullOrWhiteSpace(output) == false)
+						try
 						{
-							installations = JsonConvert.DeserializeObject<List<VsWhereInstallation>>(output);
+							string output = process.StandardOutput.ReadToEnd();
+							process.WaitForExit();
+							if (string.IsNullOrWhiteSpace(output) == false)
+							{
+								installations = JsonConvert.DeserializeObject<List<VsWhereInstallation>>(output);
+							}
+						}
+						finally
+						{
+							if (process != null && process.HasExited == false)
+							{
+								try
+								{
+									process.Kill();
+								}
+								catch { }
+							}
 						}
 					}
 				}
 			}
-			catch (Exception)
+			catch (Exception ex)
 			{
-				// Ignore detection errors. Fallback logic will handle missing data.
+				// Log detection errors but continue. Fallback logic will handle missing data.
+				System.Diagnostics.Debug.WriteLine($"Visual Studio detection error: {ex.Message}");
 			}
 
 			return installations ?? new List<VsWhereInstallation>();
@@ -359,28 +374,40 @@ namespace UnrealBinaryBuilder
 			string Local_EngineVersionPatch = null;
 			if (File.Exists(VersionFile))
 			{
-				using (StreamReader file = new StreamReader(VersionFile))
+				try
 				{
-					string CurrentLine;
-					while ((CurrentLine = file.ReadLine()) != null)
+					using (StreamReader file = new StreamReader(VersionFile))
 					{
-						if (CurrentLine.StartsWith("#define ENGINE_MAJOR_VERSION"))
+						string CurrentLine;
+						while ((CurrentLine = file.ReadLine()) != null)
 						{
-							Local_EngineVersionMajor = CurrentLine.Replace("#define ENGINE_MAJOR_VERSION", "").Replace("\t", "");
-						}
-						else if (CurrentLine.StartsWith("#define ENGINE_MINOR_VERSION"))
-						{
-							Local_EngineVersionMinor = CurrentLine.Replace("#define ENGINE_MINOR_VERSION", "").Replace("\t", "");
-						}
-						else if (CurrentLine.StartsWith("#define ENGINE_PATCH_VERSION"))
-						{
-							Local_EngineVersionPatch = CurrentLine.Replace("#define ENGINE_PATCH_VERSION", "").Replace("\t", "");
-							break;
+							if (CurrentLine.StartsWith("#define ENGINE_MAJOR_VERSION"))
+							{
+								Local_EngineVersionMajor = CurrentLine.Replace("#define ENGINE_MAJOR_VERSION", "").Replace("\t", "").Trim();
+							}
+							else if (CurrentLine.StartsWith("#define ENGINE_MINOR_VERSION"))
+							{
+								Local_EngineVersionMinor = CurrentLine.Replace("#define ENGINE_MINOR_VERSION", "").Replace("\t", "").Trim();
+							}
+							else if (CurrentLine.StartsWith("#define ENGINE_PATCH_VERSION"))
+							{
+								Local_EngineVersionPatch = CurrentLine.Replace("#define ENGINE_PATCH_VERSION", "").Replace("\t", "").Trim();
+								break;
+							}
 						}
 					}
-				}
 
-				return $"{Local_EngineVersionMajor}.{Local_EngineVersionMinor}.{Local_EngineVersionPatch}";
+					if (!string.IsNullOrWhiteSpace(Local_EngineVersionMajor) && 
+					    !string.IsNullOrWhiteSpace(Local_EngineVersionMinor) && 
+					    !string.IsNullOrWhiteSpace(Local_EngineVersionPatch))
+					{
+						return $"{Local_EngineVersionMajor}.{Local_EngineVersionMinor}.{Local_EngineVersionPatch}";
+					}
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.WriteLine($"Failed to read engine version file: {ex.Message}");
+				}
 			}
 
 			return null;
@@ -415,22 +442,22 @@ namespace UnrealBinaryBuilder
 			return $"{EngineVersionMajor}.{EngineVersionMinor}.{EngineVersionPatch}";
 		}
 
-		public static bool AutomationToolExists(string BaseEnginePath)
+	public static bool AutomationToolExists(string BaseEnginePath)
+	{
+		if (string.IsNullOrWhiteSpace(BaseEnginePath))
 		{
-			if (string.IsNullOrWhiteSpace(BaseEnginePath))
-			{
-				if (IsUnrealEngine5)
-				{
-					return File.Exists(Path.Combine(BaseEnginePath, "Engine", "Binaries", "DotNET", AUTOMATION_TOOL_NAME, $"{AUTOMATION_TOOL_NAME}.exe"));
-				}
-				else
-				{
-					return File.Exists(Path.Combine(BaseEnginePath, "Engine", "Binaries", "DotNET", $"{AUTOMATION_TOOL_LAUNCHER_NAME}.exe"));
-				}
-			}
-
 			return false;
 		}
+
+		if (IsUnrealEngine5)
+		{
+			return File.Exists(Path.Combine(BaseEnginePath, "Engine", "Binaries", "DotNET", AUTOMATION_TOOL_NAME, $"{AUTOMATION_TOOL_NAME}.exe"));
+		}
+		else
+		{
+			return File.Exists(Path.Combine(BaseEnginePath, "Engine", "Binaries", "DotNET", $"{AUTOMATION_TOOL_LAUNCHER_NAME}.exe"));
+		}
+	}
 
 		public static string GetAutomationToolProjectFile(string BaseEnginePath)
 		{
@@ -792,11 +819,11 @@ namespace UnrealBinaryBuilder
 					const string ErrorPattern = @"Error_Unknown|ERROR|exited with code 1";
 					const string ProcessedFilesPattern = @"\w.+\.(cpp|cc|c|h|ispc)";
 
-					Regex StepRgx = new Regex(StepPattern, RegexOptions.IgnoreCase);
-					Regex WarningRgx = new Regex(WarningPattern, RegexOptions.IgnoreCase);
-					Regex DebugRgx = new Regex(DebugPattern, RegexOptions.IgnoreCase);
-					Regex ErrorRgx = new Regex(ErrorPattern, RegexOptions.IgnoreCase);
-					Regex ProcessedFilesRgx = new Regex(ProcessedFilesPattern, RegexOptions.IgnoreCase);
+					Regex StepRgx = new Regex(StepPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+					Regex WarningRgx = new Regex(WarningPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+					Regex DebugRgx = new Regex(DebugPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+					Regex ErrorRgx = new Regex(ErrorPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+					Regex ProcessedFilesRgx = new Regex(ProcessedFilesPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
 					if (StepRgx.IsMatch(InMessage))
 					{
@@ -2061,11 +2088,13 @@ namespace UnrealBinaryBuilder
 					}
 				}
 
-				using (StreamReader reader = File.OpenText(PluginPath.Text))
+				try
 				{
-					UE4PluginJson PluginJson = JsonConvert.DeserializeObject<UE4PluginJson>(File.ReadAllText(PluginPath.Text));
+					string pluginJsonContent = File.ReadAllText(PluginPath.Text);
+					UE4PluginJson PluginJson = JsonConvert.DeserializeObject<UE4PluginJson>(pluginJsonContent);
 					
-					if (PluginJson.Modules[0].WhitelistPlatforms != null)
+					if (PluginJson?.Modules != null && PluginJson.Modules.Count > 0 && 
+					    PluginJson.Modules[0].WhitelistPlatforms != null)
 					{
 						foreach (var C in PluginPlatforms.Children)
 						{
@@ -2076,6 +2105,10 @@ namespace UnrealBinaryBuilder
 							}
 						}
 					}
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.WriteLine($"Failed to read plugin file: {ex.Message}");
 				}
 
 			}

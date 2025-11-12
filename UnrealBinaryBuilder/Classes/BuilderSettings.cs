@@ -276,12 +276,29 @@ namespace UnrealBinaryBuilder.Classes
 			BSJ.AnalyticsOverride = mainWindow.AnalyticsOverride.Text;
 
 			BSJ.GitDependencyAll = (bool)mainWindow.bGitSyncAll.IsChecked;
-			BSJ.GitDependencyThreads = Convert.ToInt32(mainWindow.GitNumberOfThreads.Text);
-			BSJ.GitDependencyMaxRetries = Convert.ToInt32(mainWindow.GitNumberOfRetries.Text);
+			
+			if (int.TryParse(mainWindow.GitNumberOfThreads.Text, out int threads))
+			{
+				BSJ.GitDependencyThreads = threads;
+			}
+			
+			if (int.TryParse(mainWindow.GitNumberOfRetries.Text, out int retries))
+			{
+				BSJ.GitDependencyMaxRetries = retries;
+			}
+			
 			BSJ.GitDependencyProxy = "";
 			BSJ.GitDependencyCache = mainWindow.GitCachePath.Text;
-			BSJ.GitDependencyCacheMultiplier = Convert.ToDouble(mainWindow.GitCacheMultiplier.Text);
-			BSJ.GitDependencyCacheDays = Convert.ToInt32(mainWindow.GitCacheDays.Text);
+			
+			if (double.TryParse(mainWindow.GitCacheMultiplier.Text, out double multiplier))
+			{
+				BSJ.GitDependencyCacheMultiplier = multiplier;
+			}
+			
+			if (int.TryParse(mainWindow.GitCacheDays.Text, out int cacheDays))
+			{
+				BSJ.GitDependencyCacheDays = cacheDays;
+			}
 			BSJ.GitDependencyEnableCache = (bool)mainWindow.bGitEnableCache.IsChecked;
 
 			BSJ.bHostPlatformOnly = (bool)mainWindow.bHostPlatformOnly.IsChecked;

@@ -40,11 +40,23 @@ namespace UnrealBinaryBuilder.UserControls
 			RunUATFile = Path.Combine(InEnginePath, "Engine", "Build", "BatchFiles", "RunUAT.bat");
 			PluginName.Text = Path.GetFileNameWithoutExtension(PluginPath);
 			PluginName.ToolTip = PluginPath;
-			using (StreamReader reader = File.OpenText(PluginPath))
+			try
 			{
-				JObject o = (JObject)JToken.ReadFrom(new JsonTextReader(reader));
-				PluginDescription.Text = o.GetValue("Description").ToString();
-				PluginDescription.ToolTip = PluginDescription.Text;
+				using (StreamReader reader = File.OpenText(PluginPath))
+				{
+					JObject o = (JObject)JToken.ReadFrom(new JsonTextReader(reader));
+					var descriptionValue = o.GetValue("Description");
+					if (descriptionValue != null)
+					{
+						PluginDescription.Text = descriptionValue.ToString();
+						PluginDescription.ToolTip = PluginDescription.Text;
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Failed to read plugin description: {ex.Message}");
+				PluginDescription.Text = "Description unavailable";
 			}
 
 			string PluginIcon = Path.Combine(InPluginPath.Replace(Path.GetFileName(InPluginPath), ""), "Resources", "Icon128.png");
@@ -57,7 +69,7 @@ namespace UnrealBinaryBuilder.UserControls
 			ZipProgressbar.Visibility = Visibility.Collapsed;
 
 			const string DigitsPattern = @"\d.+";
-			Regex DigitsPatternRgx = new Regex(DigitsPattern, RegexOptions.IgnoreCase);
+			Regex DigitsPatternRgx = new Regex(DigitsPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
 			EngineVersionText.Text = DigitsPatternRgx.Match(InEnginePath).Value;
 
 			bCanZip = bZipBuild;
@@ -72,15 +84,10 @@ namespace UnrealBinaryBuilder.UserControls
 
 		public string GetTargetPlatforms()
 		{
-			if (TargetPlatforms != null)
+			if (TargetPlatforms != null && TargetPlatforms.Count > 0)
 			{
-				string TargetPlatformsString = "";
-				foreach (string s in TargetPlatforms)
-				{
-					TargetPlatformsString += $"{s}+";
-				}
-
-				return $"-TargetPlatforms={TargetPlatformsString.Remove(TargetPlatformsString.Length - 1, 1)}";
+				string TargetPlatformsString = string.Join("+", TargetPlatforms);
+				return $"-TargetPlatforms={TargetPlatformsString}";
 			}
 
 			return "";

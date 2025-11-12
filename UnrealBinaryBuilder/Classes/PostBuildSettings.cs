@@ -15,13 +15,14 @@ namespace UnrealBinaryBuilder.Classes
 	public class PostBuildSettings
 	{
 		Task ZippingTask = null;
-		static CancellationTokenSource ZipCancelTokenSource = new CancellationTokenSource();
-		CancellationToken ZipCancelToken = ZipCancelTokenSource.Token;
+		private CancellationTokenSource ZipCancelTokenSource = new CancellationTokenSource();
+		private CancellationToken ZipCancelToken;
 		MainWindow mainWindow = null;
 
 		public PostBuildSettings(MainWindow _mainWindow)
 		{
 			mainWindow = _mainWindow;
+			ZipCancelToken = ZipCancelTokenSource.Token;
 		}
 
 		public bool CanSaveToZip()
@@ -69,6 +70,10 @@ namespace UnrealBinaryBuilder.Classes
 
 		public void PrepareToSave()
 		{
+			if (!ZipCancelTokenSource.IsCancellationRequested)
+			{
+				ZipCancelTokenSource.Cancel();
+			}
 			ZipCancelTokenSource.Dispose();
 			ZipCancelTokenSource = new CancellationTokenSource();
 			ZipCancelToken = ZipCancelTokenSource.Token;
@@ -377,7 +382,10 @@ namespace UnrealBinaryBuilder.Classes
 			GameAnalyticsCSharp.AddProgressEnd("Zip", "Progress", true);
 			mainWindow.CancelZipping.Content = "Canceling. Please wait...";
 			mainWindow.CancelZipping.IsEnabled = false;
-			ZipCancelTokenSource.Cancel();
+			if (ZipCancelTokenSource != null && !ZipCancelTokenSource.IsCancellationRequested)
+			{
+				ZipCancelTokenSource.Cancel();
+			}
 		}
 
 		public static string BytesToString(long byteCount)
