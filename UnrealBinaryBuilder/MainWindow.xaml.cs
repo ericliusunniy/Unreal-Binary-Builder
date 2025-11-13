@@ -455,14 +455,30 @@ namespace UnrealBinaryBuilder
 			return false;
 		}
 
-		if (IsUnrealEngine5)
+		string automationExe = GetAutomationToolExecutablePath(BaseEnginePath);
+		return !string.IsNullOrEmpty(automationExe) && File.Exists(automationExe);
+	}
+
+	public static string GetAutomationToolExecutablePath(string BaseEnginePath)
+	{
+		if (string.IsNullOrWhiteSpace(BaseEnginePath))
 		{
-			return File.Exists(Path.Combine(BaseEnginePath, "Engine", "Binaries", "DotNET", AUTOMATION_TOOL_NAME, $"{AUTOMATION_TOOL_NAME}.exe"));
+			return null;
 		}
-		else
+
+		string automationToolPath = Path.Combine(BaseEnginePath, "Engine", "Binaries", "DotNET", AUTOMATION_TOOL_NAME, $"{AUTOMATION_TOOL_NAME}.exe");
+		if (File.Exists(automationToolPath))
 		{
-			return File.Exists(Path.Combine(BaseEnginePath, "Engine", "Binaries", "DotNET", $"{AUTOMATION_TOOL_LAUNCHER_NAME}.exe"));
+			return automationToolPath;
 		}
+
+		string automationToolLauncherPath = Path.Combine(BaseEnginePath, "Engine", "Binaries", "DotNET", AUTOMATION_TOOL_LAUNCHER_NAME, $"{AUTOMATION_TOOL_LAUNCHER_NAME}.exe");
+		if (File.Exists(automationToolLauncherPath))
+		{
+			return automationToolLauncherPath;
+		}
+
+		return null;
 	}
 
 		public static string GetAutomationToolProjectFile(string BaseEnginePath)
@@ -1513,16 +1529,21 @@ namespace UnrealBinaryBuilder
 			bool bRequiredFilesExist = File.Exists(Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.SetupBatFileName)) && 
 			                           File.Exists(Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.GenerateProjectBatFileName));
 			StartSetupBatFile.IsEnabled = bRequiredFilesExist;
-			if (bRequiredFilesExist && string.IsNullOrEmpty(AutomationExePath))
+			if (bRequiredFilesExist)
 			{
-				if (UnrealBinaryBuilderHelpers.IsUnrealEngine5)
+				string resolvedAutomationExe = UnrealBinaryBuilderHelpers.GetAutomationToolExecutablePath(SetupBatFilePath.Text);
+				if (string.IsNullOrEmpty(resolvedAutomationExe))
 				{
-					AutomationExePath = Path.Combine(SetupBatFilePath.Text, "Engine", "Binaries", "DotNET", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME, $"{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}.exe");
+					resolvedAutomationExe = UnrealBinaryBuilderHelpers.IsUnrealEngine5
+						? Path.Combine(SetupBatFilePath.Text, "Engine", "Binaries", "DotNET", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME, $"{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}.exe")
+						: Path.Combine(SetupBatFilePath.Text, "Engine", "Binaries", "DotNET", $"{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}.exe");
 				}
-				else
-				{
-					AutomationExePath = Path.Combine(SetupBatFilePath.Text, "Engine", "Binaries", "DotNET", $"{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}.exe");
-				}
+
+				AutomationExePath = resolvedAutomationExe;
+			}
+			else
+			{
+				AutomationExePath = null;
 			}
 
 			UpdateCompilerOptions();
