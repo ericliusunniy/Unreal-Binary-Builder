@@ -754,7 +754,7 @@ namespace UnrealBinaryBuilder
 			}
 			else
 			{
-				string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName() ?? "进程";
+				string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName() ?? "Process";
 				string message = Services.ResourceHelper.GetString("WarningBuildInProgress", processName);
 				if (string.IsNullOrEmpty(message))
 				{
@@ -1029,10 +1029,10 @@ namespace UnrealBinaryBuilder
 			// 使用新的构建管理器检查构建状态
 			if (BuildManager.IsBuilding || bIsBuilding)
 			{
-				string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName() ?? "进程";
+				string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName() ?? "Process";
 				if (currentProcessType == CurrentProcessType.BuildProject)
 				{
-					processName = "项目构建";
+					processName = "Project Build";
 				}
 				string question = Services.ResourceHelper.GetString("QuestionStopBuild", processName);
 				if (string.IsNullOrEmpty(question))
@@ -1216,7 +1216,7 @@ namespace UnrealBinaryBuilder
 				BuildRocketUE.Content = "Build Unreal Engine";
 				if (currentProcessType == CurrentProcessType.BuildProject)
 				{
-					BuildProjectBtn.Content = "构建项目";
+					BuildProjectBtn.Content = "Build Project";
 				}
 				ChangeStatusLabel(string.Format("Build finished with code {0}. {1} errors, {2} warnings. Time elapsed: {3:hh\\:mm\\:ss}", CurrentProcess?.ExitCode ?? 0, NumErrors, NumWarnings, StopwatchTimer.Elapsed));
 			});
@@ -1324,16 +1324,16 @@ namespace UnrealBinaryBuilder
 			if (currentProcessType == CurrentProcessType.BuildProject)
 			{
 				GameAnalyticsCSharp.AddProgressEnd("Build", "Project");
-				BuildProjectBtn.Content = "构建项目";
+				BuildProjectBtn.Content = "Build Project";
 				if (bBuildSucess)
 				{
-					NotificationService.ShowInfo("项目构建完成！");
-					AddLogEntry("项目构建成功完成。");
+					NotificationService.ShowInfo("Project build completed!");
+					AddLogEntry("Project build completed successfully.");
 				}
 				else
 				{
-					NotificationService.ShowError("项目构建失败。请查看日志了解详情。");
-					AddLogEntry("项目构建失败。", true);
+					NotificationService.ShowError("Project build failed. Please check the log for details.");
+					AddLogEntry("Project build failed.", true);
 				}
 			}
 
@@ -2990,7 +2990,7 @@ namespace UnrealBinaryBuilder
 			else
 			{
 				FoundEngineLabel.Content = "Unable to detect Engine version.";
-				Logger.LogWarning("无法检测引擎版本");
+				Logger.LogWarning("Unable to detect engine version");
 			}
 
 			AutomationExePath = null;
@@ -3009,14 +3009,14 @@ namespace UnrealBinaryBuilder
 			UpdatePluginCompilerOptions();
 		}
 
-		#region 项目构建相关方法
+		#region Project Build Related Methods
 
 		private void ProjectPathBrowse_Click(object sender, RoutedEventArgs e)
 		{
 			OpenFileDialog fileDialog = new OpenFileDialog
 			{
 				Filter = "Unreal Project file (*.uproject)|*.uproject",
-				Title = "选择 Unreal 项目文件"
+				Title = "Select Unreal Project File"
 			};
 
 			if (fileDialog.ShowDialog() == true)
@@ -3024,7 +3024,7 @@ namespace UnrealBinaryBuilder
 				ProjectPath.Text = fileDialog.FileName;
 				SettingsJSON.ProjectPath = fileDialog.FileName;
 
-				// 尝试自动检测引擎路径
+				// Try to auto-detect engine path
 				if (string.IsNullOrWhiteSpace(ProjectEnginePath.Text) && !string.IsNullOrWhiteSpace(SetupBatFilePath.Text))
 				{
 					ProjectEnginePath.Text = SetupBatFilePath.Text;
@@ -3037,7 +3037,7 @@ namespace UnrealBinaryBuilder
 		{
 			System.Windows.Forms.FolderBrowserDialog folderDialog = new System.Windows.Forms.FolderBrowserDialog
 			{
-				Description = "选择 Unreal Engine 根目录",
+				Description = "Select Unreal Engine Root Directory",
 				ShowNewFolderButton = false
 			};
 
@@ -3053,7 +3053,7 @@ namespace UnrealBinaryBuilder
 				}
 				else
 				{
-					HandyControl.Controls.MessageBox.Error($"选择的目录不是有效的 Unreal Engine 根目录。\n\nRunUAT.bat 不存在于: {runUatPath}", "无效的引擎路径");
+					HandyControl.Controls.MessageBox.Error($"The selected directory is not a valid Unreal Engine root directory.\n\nRunUAT.bat does not exist at: {runUatPath}", "Invalid Engine Path");
 				}
 			}
 		}
@@ -3087,8 +3087,8 @@ namespace UnrealBinaryBuilder
 			}
 			catch (Exception ex)
 			{
-				Logger.LogException(ex, "构建项目命令行时发生错误");
-				NotificationService.ShowError($"构建项目命令行时发生错误: {ex.Message}");
+				Logger.LogException(ex, "Error occurred while building project command line");
+				NotificationService.ShowError($"Error occurred while building project command line: {ex.Message}");
 				return "";
 			}
 		}
@@ -3104,25 +3104,25 @@ namespace UnrealBinaryBuilder
 
 		private async void BuildProjectBtn_Click(object sender, RoutedEventArgs e)
 		{
-			// 如果正在构建，则停止构建
+			// If building, stop the build
 			if (BuildManager.IsBuilding || bIsBuilding)
 			{
 				if (currentProcessType == CurrentProcessType.BuildProject)
 				{
-					// 停止项目构建
+					// Stop project build
 					GameAnalyticsCSharp.AddDesignEvent("Build:Project:Stopped");
 					BuildManager.StopBuild();
 					CloseCurrentProcess(true);
-					BuildProjectBtn.Content = "构建项目";
-					NotificationService.ShowInfo("项目构建已停止");
+					BuildProjectBtn.Content = "Build Project";
+					NotificationService.ShowInfo("Project build stopped");
 					return;
 				}
 				else
 				{
-					// 其他构建任务正在运行
+					// Other build task is running
 					MessageBoxResult result = HandyControl.Controls.MessageBox.Show(
-						"已有构建任务正在运行。是否要停止当前任务并开始项目构建？",
-						"构建任务运行中",
+						"A build task is already running. Do you want to stop the current task and start project build?",
+						"Build Task Running",
 						MessageBoxButton.YesNo,
 						MessageBoxImage.Question
 					);
@@ -3139,34 +3139,34 @@ namespace UnrealBinaryBuilder
 				}
 			}
 
-			// 验证输入
+			// Validate input
 			if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !File.Exists(ProjectPath.Text))
 			{
-				NotificationService.ShowError("请选择有效的项目文件 (.uproject)");
+				NotificationService.ShowError("Please select a valid project file (.uproject)");
 				return;
 			}
 
 			if (string.IsNullOrWhiteSpace(ProjectEnginePath.Text))
 			{
-				NotificationService.ShowError("请选择引擎路径");
+				NotificationService.ShowError("Please select engine path");
 				return;
 			}
 
 			string runUatPath = Path.Combine(ProjectEnginePath.Text, "Engine", "Build", "BatchFiles", "RunUAT.bat");
 			if (!File.Exists(runUatPath))
 			{
-				NotificationService.ShowError($"RunUAT.bat 不存在于: {runUatPath}\n\n请确保选择了正确的引擎根目录。");
+				NotificationService.ShowError($"RunUAT.bat does not exist at: {runUatPath}\n\nPlease ensure you selected the correct engine root directory.");
 				return;
 			}
 
-			// 检查是否有至少一个操作被选中
+			// Check if at least one operation is selected
 			if (ProjectBuild.IsChecked != true && ProjectCook.IsChecked != true && ProjectPackage.IsChecked != true)
 			{
-				NotificationService.ShowWarning("请至少选择一个操作选项（构建、Cook 或打包）");
+				NotificationService.ShowWarning("Please select at least one operation option (Build, Cook, or Package)");
 				return;
 			}
 
-			// 准备构建
+			// Prepare build
 			currentProcessType = CurrentProcessType.BuildProject;
 			bLastBuildSuccess = false;
 
@@ -3176,7 +3176,7 @@ namespace UnrealBinaryBuilder
 				return;
 			}
 
-			ChangeStatusLabel("准备构建项目...");
+			ChangeStatusLabel("Preparing to build project...");
 
 			try
 			{
@@ -3189,11 +3189,11 @@ namespace UnrealBinaryBuilder
 					bool success = await BuildManager.BuildProjectAsync(runUatPath, commandLine);
 					if (success)
 					{
-						ChangeStatusLabel("正在构建项目...");
-						_viewModel.StatusText = "正在构建项目...";
-						BuildProjectBtn.Content = "停止构建";
+						ChangeStatusLabel("Building project...");
+						_viewModel.StatusText = "Building project...";
+						BuildProjectBtn.Content = "Stop Build";
 						GameAnalyticsCSharp.AddDesignEvent("Build:Project:Started");
-						Logger.LogInfo("项目构建已启动");
+						Logger.LogInfo("Project build started");
 
 						AddLogEntry($"========================== BUILDING PROJECT ==========================");
 						AddLogEntry($"Project: {ProjectPath.Text}");
@@ -3205,22 +3205,22 @@ namespace UnrealBinaryBuilder
 					}
 					else
 					{
-						Logger.LogError("启动项目构建失败");
+						Logger.LogError("Failed to start project build");
 						bIsBuilding = false;
 						_viewModel.IsBuilding = false;
-						BuildProjectBtn.Content = "构建项目";
-						NotificationService.ShowError("启动项目构建失败");
+						BuildProjectBtn.Content = "Build Project";
+						NotificationService.ShowError("Failed to start project build");
 					}
 				}
 			}
 			catch (Exception ex)
 			{
-				Logger.LogException(ex, "构建项目时发生错误");
-				ErrorHandler.HandleError(ex, "构建项目失败");
+				Logger.LogException(ex, "Error occurred while building project");
+				ErrorHandler.HandleError(ex, "Failed to build project");
 				bIsBuilding = false;
 				_viewModel.IsBuilding = false;
-				BuildProjectBtn.Content = "构建项目";
-				NotificationService.ShowError("构建项目时发生错误");
+				BuildProjectBtn.Content = "Build Project";
+				NotificationService.ShowError("Error occurred while building project");
 			}
 		}
 
@@ -3231,11 +3231,11 @@ namespace UnrealBinaryBuilder
 			{
 				Clipboard.SetDataObject(commandLine);
 				GameAnalyticsCSharp.AddDesignEvent("Project:CommandLine:CopyToClipboard");
-				NotificationService.ShowInfo("命令行已复制到剪贴板");
+				NotificationService.ShowInfo("Command line copied to clipboard");
 			}
 			else
 			{
-				NotificationService.ShowWarning("无法生成命令行，请检查设置");
+				NotificationService.ShowWarning("Unable to generate command line, please check settings");
 			}
 		}
 

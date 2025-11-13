@@ -83,7 +83,7 @@ namespace UnrealBinaryBuilder.Classes
 		public bool bZipEngineFastCompression { get; set; }
 		public string ZipEnginePath { get; set; }
 
-		// 项目构建设置
+		// Project build settings
 		public string ProjectPath { get; set; }
 		public string ProjectEnginePath { get; set; }
 		public string ProjectTargetType { get; set; }

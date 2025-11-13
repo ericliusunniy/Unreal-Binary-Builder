@@ -5,7 +5,7 @@ using UnrealBinaryBuilder.Classes;
 namespace UnrealBinaryBuilder.Services
 {
 	/// <summary>
-	/// 命令行构建器 - 构建 UAT 命令行参数
+	/// Command line builder - Build UAT command line arguments
 	/// </summary>
 	public class CommandLineBuilder
 	{
@@ -19,7 +19,7 @@ namespace UnrealBinaryBuilder.Services
 		}
 
 		/// <summary>
-		/// 构建引擎构建命令行
+		/// Build engine build command line
 		/// </summary>
 		public string BuildEngineCommandLine(BuilderSettingsJson settings, string customBuildXmlFile,
 			string gameConfigurations, string customOptions, string analyticsOverride, string enginePath)
@@ -28,11 +28,11 @@ namespace UnrealBinaryBuilder.Services
 			{
 				var commandLine = new StringBuilder();
 
-				// 构建 XML 文件路径
+				// Build XML file path
 				string buildXmlFile = GetBuildXmlFile(customBuildXmlFile);
 				commandLine.AppendFormat("BuildGraph -target=\"Make Installed Build Win64\" -script={0}", buildXmlFile);
 
-				// 基本选项
+				// Basic options
 				commandLine.AppendFormat(" -set:WithDDC={0}", GetConditionalString(settings.bWithDDC));
 				commandLine.AppendFormat(" -set:SignExecutables={0}", GetConditionalString(settings.bSignExecutables));
 				commandLine.AppendFormat(" -set:EmbedSrcSrvInfo={0}", GetConditionalString(settings.bEnableSymStore));
@@ -41,26 +41,26 @@ namespace UnrealBinaryBuilder.Services
 				commandLine.AppendFormat(" -set:HostPlatformEditorOnly={0}", GetConditionalString(settings.bHostPlatformEditorOnly));
 				commandLine.AppendFormat(" -set:AnalyticsTypeOverride={0}", analyticsOverride ?? "");
 
-				// DDC 选项
+				// DDC options
 				if (settings.bWithDDC && settings.bHostPlatformDDCOnly)
 				{
 					commandLine.Append(" -set:HostPlatformDDCOnly=true");
 				}
 
-				// 平台选项
+				// Platform options
 				AppendPlatformOptions(commandLine, settings, enginePath);
 
-				// Datasmith 插件
+				// Datasmith plugins
 				double engineValue = _versionDetector.GetEngineVersionValue(enginePath);
 				if (engineValue >= 4.25)
 				{
 					commandLine.AppendFormat(" -set:CompileDatasmithPlugins={0}", GetConditionalString(settings.bCompileDatasmithPlugins));
 				}
 
-				// Visual Studio 版本
+				// Visual Studio version
 				AppendVisualStudioOptions(commandLine, settings, engineValue);
 
-				// 服务器/客户端目标
+				// Server/Client targets
 				if (engineValue > 4.22)
 				{
 					commandLine.AppendFormat(" -set:WithServer={0}", GetConditionalString(settings.bWithServer));
@@ -68,33 +68,33 @@ namespace UnrealBinaryBuilder.Services
 					commandLine.AppendFormat(" -set:WithHoloLens={0}", GetConditionalString(settings.bWithHoloLens));
 				}
 
-				// 自定义选项
+				// Custom options
 				if (buildXmlFile != "Engine/Build/InstalledEngineBuild.xml" && !string.IsNullOrEmpty(customOptions))
 				{
 					commandLine.Append($" {customOptions}");
-					_logger.LogInfo("使用自定义选项");
+					_logger.LogInfo("Using custom options");
 				}
 
-				// 清理构建
+				// Clean build
 				if (settings.bCleanBuild)
 				{
 					commandLine.Append(" -Clean");
-					_logger.LogInfo("启用清理构建");
+					_logger.LogInfo("Clean build enabled");
 				}
 
 				string result = commandLine.ToString();
-				_logger.LogDebug($"构建的命令行: {result}");
+				_logger.LogDebug($"Built command line: {result}");
 				return result;
 			}
 			catch (Exception ex)
 			{
-				_logger.LogException(ex, "构建命令行时发生错误");
+				_logger.LogException(ex, "Error occurred while building command line");
 				throw;
 			}
 		}
 
 		/// <summary>
-		/// 构建 Setup.bat 命令行
+		/// Build Setup.bat command line
 		/// </summary>
 		public string BuildSetupCommandLine(BuilderSettingsJson settings)
 		{
@@ -158,14 +158,14 @@ namespace UnrealBinaryBuilder.Services
 				return;
 			}
 
-			// Windows 平台
+			// Windows platform
 			if (isUE4)
 			{
 				commandLine.Append($" -set:WithWin32={GetConditionalString(settings.bWithWin32)}");
 			}
 			commandLine.Append($" -set:WithWin64={GetConditionalString(settings.bWithWin64)}");
 
-			// 其他平台
+			// Other platforms
 			commandLine.Append($" -set:WithMac={GetConditionalString(settings.bWithMac)}");
 			commandLine.Append($" -set:WithAndroid={GetConditionalString(settings.bWithAndroid)}");
 			commandLine.Append($" -set:WithIOS={GetConditionalString(settings.bWithIOS)}");
@@ -183,13 +183,13 @@ namespace UnrealBinaryBuilder.Services
 				commandLine.Append($" -set:WithLinuxArm64={GetConditionalString(settings.bWithLinuxAArch64)}");
 			}
 
-			// HTML5 (仅 UE4 < 4.24)
+			// HTML5 (UE4 < 4.24 only)
 			if (engineValue < 4.24)
 			{
 				commandLine.Append($" -set:WithHTML5={GetConditionalString(settings.bWithHTML5)}");
 			}
 
-			// 游戏机平台 (仅 UE4 <= 4.24)
+			// Console platforms (UE4 <= 4.24 only)
 			if (engineValue <= 4.24)
 			{
 				commandLine.Append($" -set:WithSwitch={GetConditionalString(settings.bWithSwitch)}");
@@ -200,7 +200,7 @@ namespace UnrealBinaryBuilder.Services
 
 		private void AppendVisualStudioOptions(StringBuilder commandLine, BuilderSettingsJson settings, double engineValue)
 		{
-			// 这里需要检查 Visual Studio 可用性，简化处理
+			// Check Visual Studio availability, simplified handling
 			bool useVS2022 = settings.bVS2022;
 			bool useVS2019 = settings.bVS2019 && !useVS2022;
 
@@ -216,7 +216,7 @@ namespace UnrealBinaryBuilder.Services
 		}
 
 		/// <summary>
-		/// 构建项目构建命令行
+		/// Build project build command line
 		/// </summary>
 		public string BuildProjectCommandLine(string projectPath, string enginePath, string targetType,
 			string targetPlatform, string configuration, bool bCook, bool bCookAll, bool bPackage, bool bBuild, string additionalArgs)
@@ -225,40 +225,40 @@ namespace UnrealBinaryBuilder.Services
 			{
 				var commandLine = new StringBuilder();
 
-				// BuildCookRun 是 UAT 的主要命令
+				// BuildCookRun is the main UAT command
 				commandLine.Append("BuildCookRun");
 
-				// 项目路径
+				// Project path
 				if (!string.IsNullOrWhiteSpace(projectPath))
 				{
 					commandLine.AppendFormat(" -project=\"{0}\"", projectPath);
 				}
 
-				// 目标类型 (Editor/Client/Server)
+				// Target type (Editor/Client/Server)
 				if (!string.IsNullOrWhiteSpace(targetType))
 				{
 					commandLine.AppendFormat(" -target={0}", targetType);
 				}
 
-				// 目标平台
+				// Target platform
 				if (!string.IsNullOrWhiteSpace(targetPlatform))
 				{
 					commandLine.AppendFormat(" -platform={0}", targetPlatform);
 				}
 
-				// 配置
+				// Configuration
 				if (!string.IsNullOrWhiteSpace(configuration))
 				{
 					commandLine.AppendFormat(" -configuration={0}", configuration);
 				}
 
-				// 构建选项
+				// Build option
 				if (bBuild)
 				{
 					commandLine.Append(" -build");
 				}
 
-				// Cook 选项
+				// Cook option
 				if (bCook)
 				{
 					commandLine.Append(" -cook");
@@ -268,25 +268,25 @@ namespace UnrealBinaryBuilder.Services
 					}
 				}
 
-				// Package 选项
+				// Package option
 				if (bPackage)
 				{
 					commandLine.Append(" -package");
 				}
 
-				// 额外参数
+				// Additional arguments
 				if (!string.IsNullOrWhiteSpace(additionalArgs))
 				{
 					commandLine.AppendFormat(" {0}", additionalArgs);
 				}
 
 				string result = commandLine.ToString();
-				_logger.LogDebug($"项目构建命令行: {result}");
+				_logger.LogDebug($"Project build command line: {result}");
 				return result;
 			}
 			catch (Exception ex)
 			{
-				_logger.LogException(ex, "构建项目命令行时发生错误");
+				_logger.LogException(ex, "Error occurred while building project command line");
 				throw;
 			}
 		}

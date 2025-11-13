@@ -334,8 +334,8 @@
 							<RowDefinition Height="*"/>
 						</Grid.RowDefinitions>
 						
-						<!-- 项目路径选择 -->
-						<GroupBox Header="项目设置" Grid.Row="0" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
+						<!-- Project Path Selection -->
+						<GroupBox Header="Project Settings" Grid.Row="0" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
 							<StackPanel Margin="10">
 								<Grid Margin="0,5">
 									<Grid.ColumnDefinitions>
@@ -343,9 +343,9 @@
 										<ColumnDefinition Width="*"/>
 										<ColumnDefinition Width="Auto"/>
 									</Grid.ColumnDefinitions>
-									<TextBlock Text="项目路径" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
-									<hc:TextBox x:Name="ProjectPath" hc:InfoElement.Placeholder="选择 .uproject 文件" Grid.Column="1" Text="{Binding ProjectPath}" Margin="0,0,10,0"/>
-									<Button x:Name="ProjectPathBrowse" Content="浏览" Grid.Column="2" Click="ProjectPathBrowse_Click"/>
+									<TextBlock Text="Project Path" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
+									<hc:TextBox x:Name="ProjectPath" hc:InfoElement.Placeholder="Select .uproject file" Grid.Column="1" Text="{Binding ProjectPath}" Margin="0,0,10,0"/>
+									<Button x:Name="ProjectPathBrowse" Content="Browse" Grid.Column="2" Click="ProjectPathBrowse_Click"/>
 								</Grid>
 								
 								<Grid Margin="0,5">
@@ -354,15 +354,15 @@
 										<ColumnDefinition Width="*"/>
 										<ColumnDefinition Width="Auto"/>
 									</Grid.ColumnDefinitions>
-									<TextBlock Text="引擎路径" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
-									<hc:TextBox x:Name="ProjectEnginePath" hc:InfoElement.Placeholder="选择引擎根目录" Grid.Column="1" Text="{Binding ProjectEnginePath}" Margin="0,0,10,0"/>
-									<Button x:Name="ProjectEnginePathBrowse" Content="浏览" Grid.Column="2" Click="ProjectEnginePathBrowse_Click"/>
+									<TextBlock Text="Engine Path" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
+									<hc:TextBox x:Name="ProjectEnginePath" hc:InfoElement.Placeholder="Select engine root directory" Grid.Column="1" Text="{Binding ProjectEnginePath}" Margin="0,0,10,0"/>
+									<Button x:Name="ProjectEnginePathBrowse" Content="Browse" Grid.Column="2" Click="ProjectEnginePathBrowse_Click"/>
 								</Grid>
 							</StackPanel>
 						</GroupBox>
 
-						<!-- 构建选项 -->
-						<GroupBox Header="构建选项" Grid.Row="1" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
+						<!-- Build Options -->
+						<GroupBox Header="Build Options" Grid.Row="1" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
 							<StackPanel Margin="10">
 								<Grid>
 									<Grid.ColumnDefinitions>
@@ -374,14 +374,14 @@
 										<ColumnDefinition Width="*"/>
 									</Grid.ColumnDefinitions>
 									
-									<TextBlock Text="目标类型" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
+									<TextBlock Text="Target Type" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
 									<hc:ComboBox x:Name="ProjectTargetType" Grid.Column="1" Margin="0,0,10,0">
 										<ComboBoxItem Content="Editor" IsSelected="True"/>
 										<ComboBoxItem Content="Client"/>
 										<ComboBoxItem Content="Server"/>
 									</hc:ComboBox>
 									
-									<TextBlock Text="目标平台" VerticalAlignment="Center" Grid.Column="2" Margin="0,0,10,0"/>
+									<TextBlock Text="Target Platform" VerticalAlignment="Center" Grid.Column="2" Margin="0,0,10,0"/>
 									<hc:ComboBox x:Name="ProjectTargetPlatform" Grid.Column="3" Margin="0,0,10,0">
 										<ComboBoxItem Content="Win64" IsSelected="True"/>
 										<ComboBoxItem Content="Win32"/>
@@ -391,7 +391,7 @@
 										<ComboBoxItem Content="Mac"/>
 									</hc:ComboBox>
 									
-									<TextBlock Text="配置" VerticalAlignment="Center" Grid.Column="4" Margin="0,0,10,0"/>
+									<TextBlock Text="Configuration" VerticalAlignment="Center" Grid.Column="4" Margin="0,0,10,0"/>
 									<hc:ComboBox x:Name="ProjectConfiguration" Grid.Column="5">
 										<ComboBoxItem Content="Development" IsSelected="True"/>
 										<ComboBoxItem Content="Debug"/>
@@ -402,27 +402,27 @@
 							</StackPanel>
 						</GroupBox>
 
-						<!-- 操作选项 -->
-						<GroupBox Header="操作选项" Grid.Row="2" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
+						<!-- Operation Options -->
+						<GroupBox Header="Operation Options" Grid.Row="2" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
 							<WrapPanel Margin="10">
-								<CheckBox x:Name="ProjectBuild" Content="构建 (Build)" IsChecked="{Binding ProjectBuild}" Margin="10" ToolTip="编译项目代码"/>
-								<CheckBox x:Name="ProjectCook" Content="Cook" IsChecked="{Binding ProjectCook}" Margin="10" ToolTip="Cook 项目资源"/>
-								<CheckBox x:Name="ProjectCookAll" Content="Cook All" IsChecked="{Binding ProjectCookAll}" Margin="10" ToolTip="Cook 所有资源" IsEnabled="{Binding IsChecked, ElementName=ProjectCook}"/>
-								<CheckBox x:Name="ProjectPackage" Content="打包 (Package)" IsChecked="{Binding ProjectPackage}" Margin="10" ToolTip="打包项目为可分发的格式"/>
+								<CheckBox x:Name="ProjectBuild" Content="Build" IsChecked="{Binding ProjectBuild}" Margin="10" ToolTip="Compile project code"/>
+								<CheckBox x:Name="ProjectCook" Content="Cook" IsChecked="{Binding ProjectCook}" Margin="10" ToolTip="Cook project assets"/>
+								<CheckBox x:Name="ProjectCookAll" Content="Cook All" IsChecked="{Binding ProjectCookAll}" Margin="10" ToolTip="Cook all assets" IsEnabled="{Binding IsChecked, ElementName=ProjectCook}"/>
+								<CheckBox x:Name="ProjectPackage" Content="Package" IsChecked="{Binding ProjectPackage}" Margin="10" ToolTip="Package project for distribution"/>
 							</WrapPanel>
 						</GroupBox>
 
-						<!-- 额外参数 -->
-						<GroupBox Header="额外参数" Grid.Row="3" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
+						<!-- Additional Arguments -->
+						<GroupBox Header="Additional Arguments" Grid.Row="3" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
 							<StackPanel Margin="10">
-								<hc:TextBox x:Name="ProjectAdditionalArgs" hc:InfoElement.Placeholder="额外的 UAT 命令行参数 (可选)" Text="{Binding ProjectAdditionalArgs}" ToolTip="例如: -archive -archivedirectory=&quot;C:\Output&quot;"/>
+								<hc:TextBox x:Name="ProjectAdditionalArgs" hc:InfoElement.Placeholder="Additional UAT command line arguments (optional)" Text="{Binding ProjectAdditionalArgs}" ToolTip="Example: -archive -archivedirectory=&quot;C:\Output&quot;"/>
 							</StackPanel>
 						</GroupBox>
 
-						<!-- 构建按钮 -->
+						<!-- Build Buttons -->
 						<StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,10,0,0">
-							<Button x:Name="BuildProjectBtn" Content="构建项目" Style="{StaticResource ButtonPrimary}" Width="150" Height="35" Click="BuildProjectBtn_Click" Margin="0,0,10,0"/>
-							<Button x:Name="CopyProjectCommandLineBtn" Content="复制命令行" Width="150" Height="35" Click="CopyProjectCommandLineBtn_Click"/>
+							<Button x:Name="BuildProjectBtn" Content="Build Project" Style="{StaticResource ButtonPrimary}" Width="150" Height="35" Click="BuildProjectBtn_Click" Margin="0,0,10,0"/>
+							<Button x:Name="CopyProjectCommandLineBtn" Content="Copy Command Line" Width="150" Height="35" Click="CopyProjectCommandLineBtn_Click"/>
 						</StackPanel>
 					</Grid>
 				</hc:TabItem>
