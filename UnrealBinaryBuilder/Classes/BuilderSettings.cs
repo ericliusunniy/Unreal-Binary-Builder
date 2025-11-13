@@ -64,6 +64,7 @@ namespace UnrealBinaryBuilder.Classes
 		public bool bCompileDatasmithPlugins { get; set; }
 		public bool bVS2019 { get; set; }
 		public bool bVS2022 { get; set; }
+		public string PreferredCompilerVersion { get; set; }
 		public bool bShutdownPC { get; set; }
 		public bool bShutdownIfBuildSuccess { get; set; }
 		public bool bContinueToEngineBuild { get; set; }
@@ -189,6 +190,7 @@ namespace UnrealBinaryBuilder.Classes
 			BSJ.bCompileDatasmithPlugins = false;
 			BSJ.bVS2019 = false;
 			BSJ.bVS2022 = true;
+			BSJ.PreferredCompilerVersion = UnrealBinaryBuilderHelpers.VisualStudioVersion2022;
 			BSJ.bShutdownPC = false;
 			BSJ.bShutdownIfBuildSuccess = false;
 			BSJ.bContinueToEngineBuild = true;
@@ -229,10 +231,7 @@ namespace UnrealBinaryBuilder.Classes
 			{
 				string JsonOutput = File.ReadAllText(PROGRAM_SETTINGS_PATH);
 				ReturnValue = JsonConvert.DeserializeObject<BuilderSettingsJson>(JsonOutput);
-				if (ReturnValue != null && ReturnValue.bVS2019 == false && ReturnValue.bVS2022 == false)
-				{
-					ReturnValue.bVS2022 = true;
-				}
+				NormalizeCompilerPreference(ReturnValue);
 				if (bLog)
 				{
 					LogEntry logEntry = new LogEntry();
@@ -339,11 +338,10 @@ namespace UnrealBinaryBuilder.Classes
 			BSJ.bWithServer = (bool)mainWindow.bWithServer.IsChecked;
 			BSJ.bWithClient = (bool)mainWindow.bWithClient.IsChecked;
 			BSJ.bCompileDatasmithPlugins = (bool)mainWindow.bCompileDatasmithPlugins.IsChecked;
-			BSJ.bVS2019 = (bool)mainWindow.bVS2019.IsChecked;
-			if (mainWindow.bVS2022 != null)
-			{
-				BSJ.bVS2022 = (bool)mainWindow.bVS2022.IsChecked;
-			}
+			string selectedCompiler = mainWindow.SettingsJSON?.PreferredCompilerVersion;
+			BSJ.PreferredCompilerVersion = selectedCompiler;
+			BSJ.bVS2022 = string.Equals(selectedCompiler, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase);
+			BSJ.bVS2019 = string.Equals(selectedCompiler, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase);
 			BSJ.bShutdownPC = (bool)mainWindow.bShutdownWindows.IsChecked;
 			BSJ.bShutdownIfBuildSuccess = (bool)mainWindow.bShutdownIfSuccess.IsChecked;
 			BSJ.bContinueToEngineBuild = (bool)mainWindow.bContinueToEngineBuild.IsChecked;
@@ -384,6 +382,37 @@ namespace UnrealBinaryBuilder.Classes
 			LogEntry logEntry = new LogEntry();
 			logEntry.Message = $"New Settings file written to {PROGRAM_SETTINGS_PATH}.";
 			mainWindow.LogControl.AddLogEntry(logEntry, LogViewer.EMessageType.Info);
+		}
+
+		private static void NormalizeCompilerPreference(BuilderSettingsJson settings)
+		{
+			if (settings == null)
+			{
+				return;
+			}
+
+			if (string.IsNullOrWhiteSpace(settings.PreferredCompilerVersion))
+			{
+				if (settings.bVS2022)
+				{
+					settings.PreferredCompilerVersion = UnrealBinaryBuilderHelpers.VisualStudioVersion2022;
+				}
+				else if (settings.bVS2019)
+				{
+					settings.PreferredCompilerVersion = UnrealBinaryBuilderHelpers.VisualStudioVersion2019;
+				}
+				else
+				{
+					settings.PreferredCompilerVersion = UnrealBinaryBuilderHelpers.VisualStudioVersion2022;
+					settings.bVS2022 = true;
+					settings.bVS2019 = false;
+				}
+			}
+			else
+			{
+				settings.bVS2022 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase);
+				settings.bVS2019 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase);
+			}
 		}
 
 		public static void WriteToLogFile(string InContent)
