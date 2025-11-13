@@ -560,7 +560,8 @@ namespace UnrealBinaryBuilder
 			BuildAutomationTool,
 			BuildAutomationToolLauncher,
 			BuildUnrealEngine,
-			BuildPlugin
+			BuildPlugin,
+			BuildProject
 		}
 
 		private CurrentProcessType currentProcessType = CurrentProcessType.None;
@@ -1029,6 +1030,10 @@ namespace UnrealBinaryBuilder
 			if (BuildManager.IsBuilding || bIsBuilding)
 			{
 				string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName() ?? "进程";
+				if (currentProcessType == CurrentProcessType.BuildProject)
+				{
+					processName = "项目构建";
+				}
 				string question = Services.ResourceHelper.GetString("QuestionStopBuild", processName);
 				if (string.IsNullOrEmpty(question))
 				{
@@ -1209,6 +1214,10 @@ namespace UnrealBinaryBuilder
 			Dispatcher.InvokeAsync(() =>
 			{
 				BuildRocketUE.Content = "Build Unreal Engine";
+				if (currentProcessType == CurrentProcessType.BuildProject)
+				{
+					BuildProjectBtn.Content = "构建项目";
+				}
 				ChangeStatusLabel(string.Format("Build finished with code {0}. {1} errors, {2} warnings. Time elapsed: {3:hh\\:mm\\:ss}", CurrentProcess?.ExitCode ?? 0, NumErrors, NumWarnings, StopwatchTimer.Elapsed));
 			});
 
@@ -1225,6 +1234,10 @@ namespace UnrealBinaryBuilder
 			{
 				StartSetupBatFile.IsEnabled = true;
 				StartPluginBuildsBtn.IsEnabled = true;
+				if (currentProcessType == CurrentProcessType.BuildProject)
+				{
+					BuildProjectBtn.IsEnabled = true;
+				}
 				OnBuildFinishedInternal(bLastBuildSuccess); // 修复：调用内部方法而不是事件处理器
 			});
 		}
@@ -1305,6 +1318,22 @@ namespace UnrealBinaryBuilder
 				{
 					Growl.Clear("PluginBuild");
 					ShowToastMessage($"Finished plugin queue build with {PluginQueues.Children.Count} plugin(s)");
+				}
+			}
+
+			if (currentProcessType == CurrentProcessType.BuildProject)
+			{
+				GameAnalyticsCSharp.AddProgressEnd("Build", "Project");
+				BuildProjectBtn.Content = "构建项目";
+				if (bBuildSucess)
+				{
+					NotificationService.ShowInfo("项目构建完成！");
+					AddLogEntry("项目构建成功完成。");
+				}
+				else
+				{
+					NotificationService.ShowError("项目构建失败。请查看日志了解详情。");
+					AddLogEntry("项目构建失败。", true);
 				}
 			}
 
@@ -2979,5 +3008,237 @@ namespace UnrealBinaryBuilder
 			UpdateCompilerOptions();
 			UpdatePluginCompilerOptions();
 		}
+
+		#region 项目构建相关方法
+
+		private void ProjectPathBrowse_Click(object sender, RoutedEventArgs e)
+		{
+			OpenFileDialog fileDialog = new OpenFileDialog
+			{
+				Filter = "Unreal Project file (*.uproject)|*.uproject",
+				Title = "选择 Unreal 项目文件"
+			};
+
+			if (fileDialog.ShowDialog() == true)
+			{
+				ProjectPath.Text = fileDialog.FileName;
+				SettingsJSON.ProjectPath = fileDialog.FileName;
+
+				// 尝试自动检测引擎路径
+				if (string.IsNullOrWhiteSpace(ProjectEnginePath.Text) && !string.IsNullOrWhiteSpace(SetupBatFilePath.Text))
+				{
+					ProjectEnginePath.Text = SetupBatFilePath.Text;
+					SettingsJSON.ProjectEnginePath = SetupBatFilePath.Text;
+				}
+			}
+		}
+
+		private void ProjectEnginePathBrowse_Click(object sender, RoutedEventArgs e)
+		{
+			System.Windows.Forms.FolderBrowserDialog folderDialog = new System.Windows.Forms.FolderBrowserDialog
+			{
+				Description = "选择 Unreal Engine 根目录",
+				ShowNewFolderButton = false
+			};
+
+			if (folderDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+			{
+				string selectedPath = folderDialog.SelectedPath;
+				string runUatPath = Path.Combine(selectedPath, "Engine", "Build", "BatchFiles", "RunUAT.bat");
+
+				if (File.Exists(runUatPath))
+				{
+					ProjectEnginePath.Text = selectedPath;
+					SettingsJSON.ProjectEnginePath = selectedPath;
+				}
+				else
+				{
+					HandyControl.Controls.MessageBox.Error($"选择的目录不是有效的 Unreal Engine 根目录。\n\nRunUAT.bat 不存在于: {runUatPath}", "无效的引擎路径");
+				}
+			}
+		}
+
+		private string PrepareProjectCommandLine()
+		{
+			try
+			{
+				string projectPath = ProjectPath.Text;
+				string targetType = GetSelectedComboBoxItem(ProjectTargetType);
+				string targetPlatform = GetSelectedComboBoxItem(ProjectTargetPlatform);
+				string configuration = GetSelectedComboBoxItem(ProjectConfiguration);
+				bool bBuild = ProjectBuild.IsChecked == true;
+				bool bCook = ProjectCook.IsChecked == true;
+				bool bCookAll = ProjectCookAll.IsChecked == true;
+				bool bPackage = ProjectPackage.IsChecked == true;
+				string additionalArgs = ProjectAdditionalArgs.Text ?? "";
+
+				return CommandLineBuilder.BuildProjectCommandLine(
+					projectPath,
+					ProjectEnginePath.Text,
+					targetType,
+					targetPlatform,
+					configuration,
+					bCook,
+					bCookAll,
+					bPackage,
+					bBuild,
+					additionalArgs
+				);
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "构建项目命令行时发生错误");
+				NotificationService.ShowError($"构建项目命令行时发生错误: {ex.Message}");
+				return "";
+			}
+		}
+
+		private string GetSelectedComboBoxItem(System.Windows.Controls.ComboBox comboBox)
+		{
+			if (comboBox?.SelectedItem is System.Windows.Controls.ComboBoxItem item)
+			{
+				return item.Content?.ToString() ?? "";
+			}
+			return "";
+		}
+
+		private async void BuildProjectBtn_Click(object sender, RoutedEventArgs e)
+		{
+			// 如果正在构建，则停止构建
+			if (BuildManager.IsBuilding || bIsBuilding)
+			{
+				if (currentProcessType == CurrentProcessType.BuildProject)
+				{
+					// 停止项目构建
+					GameAnalyticsCSharp.AddDesignEvent("Build:Project:Stopped");
+					BuildManager.StopBuild();
+					CloseCurrentProcess(true);
+					BuildProjectBtn.Content = "构建项目";
+					NotificationService.ShowInfo("项目构建已停止");
+					return;
+				}
+				else
+				{
+					// 其他构建任务正在运行
+					MessageBoxResult result = HandyControl.Controls.MessageBox.Show(
+						"已有构建任务正在运行。是否要停止当前任务并开始项目构建？",
+						"构建任务运行中",
+						MessageBoxButton.YesNo,
+						MessageBoxImage.Question
+					);
+
+					if (result == MessageBoxResult.Yes)
+					{
+						BuildManager.StopBuild();
+						CloseCurrentProcess(true);
+					}
+					else
+					{
+						return;
+					}
+				}
+			}
+
+			// 验证输入
+			if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !File.Exists(ProjectPath.Text))
+			{
+				NotificationService.ShowError("请选择有效的项目文件 (.uproject)");
+				return;
+			}
+
+			if (string.IsNullOrWhiteSpace(ProjectEnginePath.Text))
+			{
+				NotificationService.ShowError("请选择引擎路径");
+				return;
+			}
+
+			string runUatPath = Path.Combine(ProjectEnginePath.Text, "Engine", "Build", "BatchFiles", "RunUAT.bat");
+			if (!File.Exists(runUatPath))
+			{
+				NotificationService.ShowError($"RunUAT.bat 不存在于: {runUatPath}\n\n请确保选择了正确的引擎根目录。");
+				return;
+			}
+
+			// 检查是否有至少一个操作被选中
+			if (ProjectBuild.IsChecked != true && ProjectCook.IsChecked != true && ProjectPackage.IsChecked != true)
+			{
+				NotificationService.ShowWarning("请至少选择一个操作选项（构建、Cook 或打包）");
+				return;
+			}
+
+			// 准备构建
+			currentProcessType = CurrentProcessType.BuildProject;
+			bLastBuildSuccess = false;
+
+			string commandLine = PrepareProjectCommandLine();
+			if (string.IsNullOrWhiteSpace(commandLine))
+			{
+				return;
+			}
+
+			ChangeStatusLabel("准备构建项目...");
+
+			try
+			{
+				using (PerformanceMonitor.StartOperation("BuildProject"))
+				{
+					_viewModel.IsBuilding = true;
+					_viewModel.ResetCounters();
+					bIsBuilding = true;
+
+					bool success = await BuildManager.BuildProjectAsync(runUatPath, commandLine);
+					if (success)
+					{
+						ChangeStatusLabel("正在构建项目...");
+						_viewModel.StatusText = "正在构建项目...";
+						BuildProjectBtn.Content = "停止构建";
+						GameAnalyticsCSharp.AddDesignEvent("Build:Project:Started");
+						Logger.LogInfo("项目构建已启动");
+
+						AddLogEntry($"========================== BUILDING PROJECT ==========================");
+						AddLogEntry($"Project: {ProjectPath.Text}");
+						AddLogEntry($"Engine: {ProjectEnginePath.Text}");
+						AddLogEntry($"Target Type: {GetSelectedComboBoxItem(ProjectTargetType)}");
+						AddLogEntry($"Target Platform: {GetSelectedComboBoxItem(ProjectTargetPlatform)}");
+						AddLogEntry($"Configuration: {GetSelectedComboBoxItem(ProjectConfiguration)}");
+						AddLogEntry($"Command Line: {commandLine}");
+					}
+					else
+					{
+						Logger.LogError("启动项目构建失败");
+						bIsBuilding = false;
+						_viewModel.IsBuilding = false;
+						BuildProjectBtn.Content = "构建项目";
+						NotificationService.ShowError("启动项目构建失败");
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "构建项目时发生错误");
+				ErrorHandler.HandleError(ex, "构建项目失败");
+				bIsBuilding = false;
+				_viewModel.IsBuilding = false;
+				BuildProjectBtn.Content = "构建项目";
+				NotificationService.ShowError("构建项目时发生错误");
+			}
+		}
+
+		private void CopyProjectCommandLineBtn_Click(object sender, RoutedEventArgs e)
+		{
+			string commandLine = PrepareProjectCommandLine();
+			if (!string.IsNullOrWhiteSpace(commandLine))
+			{
+				Clipboard.SetDataObject(commandLine);
+				GameAnalyticsCSharp.AddDesignEvent("Project:CommandLine:CopyToClipboard");
+				NotificationService.ShowInfo("命令行已复制到剪贴板");
+			}
+			else
+			{
+				NotificationService.ShowWarning("无法生成命令行，请检查设置");
+			}
+		}
+
+		#endregion
 	}
 }

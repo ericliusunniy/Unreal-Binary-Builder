@@ -215,6 +215,82 @@ namespace UnrealBinaryBuilder.Services
 			}
 		}
 
+		/// <summary>
+		/// 构建项目构建命令行
+		/// </summary>
+		public string BuildProjectCommandLine(string projectPath, string enginePath, string targetType,
+			string targetPlatform, string configuration, bool bCook, bool bCookAll, bool bPackage, bool bBuild, string additionalArgs)
+		{
+			try
+			{
+				var commandLine = new StringBuilder();
+
+				// BuildCookRun 是 UAT 的主要命令
+				commandLine.Append("BuildCookRun");
+
+				// 项目路径
+				if (!string.IsNullOrWhiteSpace(projectPath))
+				{
+					commandLine.AppendFormat(" -project=\"{0}\"", projectPath);
+				}
+
+				// 目标类型 (Editor/Client/Server)
+				if (!string.IsNullOrWhiteSpace(targetType))
+				{
+					commandLine.AppendFormat(" -target={0}", targetType);
+				}
+
+				// 目标平台
+				if (!string.IsNullOrWhiteSpace(targetPlatform))
+				{
+					commandLine.AppendFormat(" -platform={0}", targetPlatform);
+				}
+
+				// 配置
+				if (!string.IsNullOrWhiteSpace(configuration))
+				{
+					commandLine.AppendFormat(" -configuration={0}", configuration);
+				}
+
+				// 构建选项
+				if (bBuild)
+				{
+					commandLine.Append(" -build");
+				}
+
+				// Cook 选项
+				if (bCook)
+				{
+					commandLine.Append(" -cook");
+					if (bCookAll)
+					{
+						commandLine.Append(" -cookall");
+					}
+				}
+
+				// Package 选项
+				if (bPackage)
+				{
+					commandLine.Append(" -package");
+				}
+
+				// 额外参数
+				if (!string.IsNullOrWhiteSpace(additionalArgs))
+				{
+					commandLine.AppendFormat(" {0}", additionalArgs);
+				}
+
+				string result = commandLine.ToString();
+				_logger.LogDebug($"项目构建命令行: {result}");
+				return result;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogException(ex, "构建项目命令行时发生错误");
+				throw;
+			}
+		}
+
 		private string GetConditionalString(bool? condition)
 		{
 			return condition == true ? "true" : "false";

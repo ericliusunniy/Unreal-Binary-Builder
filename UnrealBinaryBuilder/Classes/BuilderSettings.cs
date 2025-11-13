@@ -82,6 +82,18 @@ namespace UnrealBinaryBuilder.Classes
 		public bool bZipEngineTemplates { get; set; }
 		public bool bZipEngineFastCompression { get; set; }
 		public string ZipEnginePath { get; set; }
+
+		// 项目构建设置
+		public string ProjectPath { get; set; }
+		public string ProjectEnginePath { get; set; }
+		public string ProjectTargetType { get; set; }
+		public string ProjectTargetPlatform { get; set; }
+		public string ProjectConfiguration { get; set; }
+		public bool ProjectBuild { get; set; }
+		public bool ProjectCook { get; set; }
+		public bool ProjectCookAll { get; set; }
+		public bool ProjectPackage { get; set; }
+		public string ProjectAdditionalArgs { get; set; }
 	}
 
 	public class GitPlatform

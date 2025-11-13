@@ -23,15 +23,20 @@ namespace UnrealBinaryBuilder.Services
 		/// </summary>
 		event EventHandler<BuildFinishedEventArgs> BuildFinished;
 
-		/// <summary>
-		/// 异步构建引擎
-		/// </summary>
-		Task<bool> BuildEngineAsync(string automationExePath, string commandLineArgs);
+	/// <summary>
+	/// 异步构建引擎
+	/// </summary>
+	Task<bool> BuildEngineAsync(string automationExePath, string commandLineArgs);
 
-		/// <summary>
-		/// 停止构建
-		/// </summary>
-		void StopBuild();
+	/// <summary>
+	/// 异步构建项目
+	/// </summary>
+	Task<bool> BuildProjectAsync(string runUatPath, string commandLineArgs);
+
+	/// <summary>
+	/// 停止构建
+	/// </summary>
+	void StopBuild();
 
 		/// <summary>
 		/// 重置构建状态

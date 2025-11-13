@@ -84,6 +84,57 @@ namespace UnrealBinaryBuilder.Services
 			}
 		}
 
+		public Task<bool> BuildProjectAsync(string runUatPath, string commandLineArgs)
+		{
+			if (_isBuilding)
+			{
+				_logger.LogWarning("构建已在进行中，无法启动新的构建");
+				return Task.FromResult(false);
+			}
+
+			if (string.IsNullOrWhiteSpace(runUatPath))
+			{
+				_logger.LogError("RunUAT路径不能为空");
+				return Task.FromResult(false);
+			}
+
+			try
+			{
+				_isBuilding = true;
+				_errorCount = 0;
+				_warningCount = 0;
+				_stopwatch.Restart();
+
+				var startInfo = new ProcessStartInfo
+				{
+					FileName = runUatPath,
+					Arguments = commandLineArgs,
+					UseShellExecute = false,
+					CreateNoWindow = true,
+					RedirectStandardError = true,
+					RedirectStandardOutput = true
+				};
+
+				bool started = _processManager.StartProcess(startInfo);
+				if (!started)
+				{
+					_isBuilding = false;
+					return Task.FromResult(false);
+				}
+
+				_logger.LogInfo($"项目构建已启动: {runUatPath}");
+				_logger.LogInfo($"命令行参数: {commandLineArgs}");
+
+				return Task.FromResult(true);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogException(ex, "启动项目构建时发生错误");
+				_isBuilding = false;
+				return Task.FromResult(false);
+			}
+		}
+
 		public void StopBuild()
 		{
 			if (_isBuilding)
