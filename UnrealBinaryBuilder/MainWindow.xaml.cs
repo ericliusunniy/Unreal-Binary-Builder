@@ -684,6 +684,129 @@ namespace UnrealBinaryBuilder
 			{
 				UpdateManager.CheckForUpdatesSilently();
 			}
+
+			// Initialize project build UI texts
+			InitializeProjectBuildUI();
+		}
+
+		/// <summary>
+		/// Initialize project build UI texts from resources
+		/// </summary>
+		private void InitializeProjectBuildUI()
+		{
+			try
+			{
+				// Project Settings GroupBox
+				if (ProjectSettingsGroupBox != null)
+				{
+					ProjectSettingsGroupBox.Header = Services.ResourceHelper.GetString("ProjectSettings");
+				}
+
+				// Project Path
+				if (ProjectPathLabel != null)
+				{
+					ProjectPathLabel.Text = Services.ResourceHelper.GetString("ProjectPath");
+				}
+				if (ProjectPath != null)
+				{
+					HandyControl.Controls.InfoElement.SetPlaceholder(ProjectPath, Services.ResourceHelper.GetString("ProjectPathPlaceholder"));
+				}
+				if (ProjectPathBrowse != null)
+				{
+					ProjectPathBrowse.Content = Services.ResourceHelper.GetString("Browse");
+				}
+
+				// Engine Path
+				if (EnginePathLabel != null)
+				{
+					EnginePathLabel.Text = Services.ResourceHelper.GetString("EnginePath");
+				}
+				if (ProjectEnginePath != null)
+				{
+					HandyControl.Controls.InfoElement.SetPlaceholder(ProjectEnginePath, Services.ResourceHelper.GetString("EnginePathPlaceholder"));
+				}
+				if (ProjectEnginePathBrowse != null)
+				{
+					ProjectEnginePathBrowse.Content = Services.ResourceHelper.GetString("Browse");
+				}
+
+				// Build Options GroupBox
+				if (BuildOptionsGroupBox != null)
+				{
+					BuildOptionsGroupBox.Header = Services.ResourceHelper.GetString("BuildOptions");
+				}
+
+				// Target Type
+				if (TargetTypeLabel != null)
+				{
+					TargetTypeLabel.Text = Services.ResourceHelper.GetString("TargetType");
+				}
+
+				// Target Platform
+				if (TargetPlatformLabel != null)
+				{
+					TargetPlatformLabel.Text = Services.ResourceHelper.GetString("TargetPlatform");
+				}
+
+				// Configuration
+				if (ConfigurationLabel != null)
+				{
+					ConfigurationLabel.Text = Services.ResourceHelper.GetString("Configuration");
+				}
+
+				// Operation Options GroupBox
+				if (OperationOptionsGroupBox != null)
+				{
+					OperationOptionsGroupBox.Header = Services.ResourceHelper.GetString("OperationOptions");
+				}
+
+				// Operation checkboxes
+				if (ProjectBuild != null)
+				{
+					ProjectBuild.Content = Services.ResourceHelper.GetString("Build");
+					ProjectBuild.ToolTip = Services.ResourceHelper.GetString("BuildToolTip");
+				}
+				if (ProjectCook != null)
+				{
+					ProjectCook.Content = Services.ResourceHelper.GetString("Cook");
+					ProjectCook.ToolTip = Services.ResourceHelper.GetString("CookToolTip");
+				}
+				if (ProjectCookAll != null)
+				{
+					ProjectCookAll.Content = Services.ResourceHelper.GetString("CookAll");
+					ProjectCookAll.ToolTip = Services.ResourceHelper.GetString("CookAllToolTip");
+				}
+				if (ProjectPackage != null)
+				{
+					ProjectPackage.Content = Services.ResourceHelper.GetString("Package");
+					ProjectPackage.ToolTip = Services.ResourceHelper.GetString("PackageToolTip");
+				}
+
+				// Additional Arguments GroupBox
+				if (AdditionalArgumentsGroupBox != null)
+				{
+					AdditionalArgumentsGroupBox.Header = Services.ResourceHelper.GetString("AdditionalArguments");
+				}
+				if (ProjectAdditionalArgs != null)
+				{
+					HandyControl.Controls.InfoElement.SetPlaceholder(ProjectAdditionalArgs, Services.ResourceHelper.GetString("AdditionalArgumentsPlaceholder"));
+					ProjectAdditionalArgs.ToolTip = Services.ResourceHelper.GetString("AdditionalArgumentsToolTip");
+				}
+
+				// Buttons
+				if (BuildProjectBtn != null)
+				{
+					BuildProjectBtn.Content = Services.ResourceHelper.GetString("BuildProject");
+				}
+				if (CopyProjectCommandLineBtn != null)
+				{
+					CopyProjectCommandLineBtn.Content = Services.ResourceHelper.GetString("CopyCommandLine");
+				}
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "Error occurred while initializing project build UI");
+			}
 		}
 
 		/// <summary>
@@ -1216,7 +1339,7 @@ namespace UnrealBinaryBuilder
 				BuildRocketUE.Content = "Build Unreal Engine";
 				if (currentProcessType == CurrentProcessType.BuildProject)
 				{
-					BuildProjectBtn.Content = "Build Project";
+					BuildProjectBtn.Content = Services.ResourceHelper.GetString("BuildProject");
 				}
 				ChangeStatusLabel(string.Format("Build finished with code {0}. {1} errors, {2} warnings. Time elapsed: {3:hh\\:mm\\:ss}", CurrentProcess?.ExitCode ?? 0, NumErrors, NumWarnings, StopwatchTimer.Elapsed));
 			});
@@ -1324,16 +1447,16 @@ namespace UnrealBinaryBuilder
 			if (currentProcessType == CurrentProcessType.BuildProject)
 			{
 				GameAnalyticsCSharp.AddProgressEnd("Build", "Project");
-				BuildProjectBtn.Content = "Build Project";
+				BuildProjectBtn.Content = Services.ResourceHelper.GetString("BuildProject");
 				if (bBuildSucess)
 				{
-					NotificationService.ShowInfo("Project build completed!");
-					AddLogEntry("Project build completed successfully.");
+					NotificationService.ShowInfo(Services.ResourceHelper.GetString("MessageProjectBuildCompleted"));
+					AddLogEntry(Services.ResourceHelper.GetString("MessageProjectBuildCompletedSuccess"));
 				}
 				else
 				{
-					NotificationService.ShowError("Project build failed. Please check the log for details.");
-					AddLogEntry("Project build failed.", true);
+					NotificationService.ShowError(Services.ResourceHelper.GetString("ErrorProjectBuildFailed"));
+					AddLogEntry(Services.ResourceHelper.GetString("ErrorProjectBuildFailedLog"), true);
 				}
 			}
 
@@ -3016,7 +3139,7 @@ namespace UnrealBinaryBuilder
 			OpenFileDialog fileDialog = new OpenFileDialog
 			{
 				Filter = "Unreal Project file (*.uproject)|*.uproject",
-				Title = "Select Unreal Project File"
+				Title = Services.ResourceHelper.GetString("SelectUnrealProjectFile")
 			};
 
 			if (fileDialog.ShowDialog() == true)
@@ -3037,7 +3160,7 @@ namespace UnrealBinaryBuilder
 		{
 			System.Windows.Forms.FolderBrowserDialog folderDialog = new System.Windows.Forms.FolderBrowserDialog
 			{
-				Description = "Select Unreal Engine Root Directory",
+				Description = Services.ResourceHelper.GetString("SelectUnrealEngineRootDirectory"),
 				ShowNewFolderButton = false
 			};
 
@@ -3053,7 +3176,9 @@ namespace UnrealBinaryBuilder
 				}
 				else
 				{
-					HandyControl.Controls.MessageBox.Error($"The selected directory is not a valid Unreal Engine root directory.\n\nRunUAT.bat does not exist at: {runUatPath}", "Invalid Engine Path");
+					string errorMessage = Services.ResourceHelper.GetString("ErrorInvalidEnginePath", runUatPath);
+					string errorTitle = Services.ResourceHelper.GetString("ErrorInvalidEnginePathTitle");
+					HandyControl.Controls.MessageBox.Error(errorMessage, errorTitle);
 				}
 			}
 		}
@@ -3088,7 +3213,8 @@ namespace UnrealBinaryBuilder
 			catch (Exception ex)
 			{
 				Logger.LogException(ex, "Error occurred while building project command line");
-				NotificationService.ShowError($"Error occurred while building project command line: {ex.Message}");
+				string errorMessage = Services.ResourceHelper.GetString("ErrorBuildCommandLineFailed", ex.Message);
+				NotificationService.ShowError(errorMessage);
 				return "";
 			}
 		}
@@ -3113,16 +3239,18 @@ namespace UnrealBinaryBuilder
 					GameAnalyticsCSharp.AddDesignEvent("Build:Project:Stopped");
 					BuildManager.StopBuild();
 					CloseCurrentProcess(true);
-					BuildProjectBtn.Content = "Build Project";
-					NotificationService.ShowInfo("Project build stopped");
+					BuildProjectBtn.Content = Services.ResourceHelper.GetString("BuildProject");
+					NotificationService.ShowInfo(Services.ResourceHelper.GetString("MessageProjectBuildStopped"));
 					return;
 				}
 				else
 				{
 					// Other build task is running
+					string question = Services.ResourceHelper.GetString("QuestionStopBuildTask");
+					string title = Services.ResourceHelper.GetString("TitleBuildTaskRunning");
 					MessageBoxResult result = HandyControl.Controls.MessageBox.Show(
-						"A build task is already running. Do you want to stop the current task and start project build?",
-						"Build Task Running",
+						question,
+						title,
 						MessageBoxButton.YesNo,
 						MessageBoxImage.Question
 					);
@@ -3142,27 +3270,28 @@ namespace UnrealBinaryBuilder
 			// Validate input
 			if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !File.Exists(ProjectPath.Text))
 			{
-				NotificationService.ShowError("Please select a valid project file (.uproject)");
+				NotificationService.ShowError(Services.ResourceHelper.GetString("ErrorProjectFileRequired"));
 				return;
 			}
 
 			if (string.IsNullOrWhiteSpace(ProjectEnginePath.Text))
 			{
-				NotificationService.ShowError("Please select engine path");
+				NotificationService.ShowError(Services.ResourceHelper.GetString("ErrorEnginePathRequired"));
 				return;
 			}
 
 			string runUatPath = Path.Combine(ProjectEnginePath.Text, "Engine", "Build", "BatchFiles", "RunUAT.bat");
 			if (!File.Exists(runUatPath))
 			{
-				NotificationService.ShowError($"RunUAT.bat does not exist at: {runUatPath}\n\nPlease ensure you selected the correct engine root directory.");
+				string errorMessage = Services.ResourceHelper.GetString("ErrorRunUATNotFound", runUatPath);
+				NotificationService.ShowError(errorMessage);
 				return;
 			}
 
 			// Check if at least one operation is selected
 			if (ProjectBuild.IsChecked != true && ProjectCook.IsChecked != true && ProjectPackage.IsChecked != true)
 			{
-				NotificationService.ShowWarning("Please select at least one operation option (Build, Cook, or Package)");
+				NotificationService.ShowWarning(Services.ResourceHelper.GetString("WarningSelectOperation"));
 				return;
 			}
 
@@ -3176,7 +3305,7 @@ namespace UnrealBinaryBuilder
 				return;
 			}
 
-			ChangeStatusLabel("Preparing to build project...");
+			ChangeStatusLabel(Services.ResourceHelper.GetString("MessagePreparingBuild"));
 
 			try
 			{
@@ -3189,11 +3318,12 @@ namespace UnrealBinaryBuilder
 					bool success = await BuildManager.BuildProjectAsync(runUatPath, commandLine);
 					if (success)
 					{
-						ChangeStatusLabel("Building project...");
-						_viewModel.StatusText = "Building project...";
-						BuildProjectBtn.Content = "Stop Build";
+						string buildingText = Services.ResourceHelper.GetString("MessageBuildingProject");
+						ChangeStatusLabel(buildingText);
+						_viewModel.StatusText = buildingText;
+						BuildProjectBtn.Content = Services.ResourceHelper.GetString("StopBuild");
 						GameAnalyticsCSharp.AddDesignEvent("Build:Project:Started");
-						Logger.LogInfo("Project build started");
+						Logger.LogInfo(Services.ResourceHelper.GetString("MessageProjectBuildStarted"));
 
 						AddLogEntry($"========================== BUILDING PROJECT ==========================");
 						AddLogEntry($"Project: {ProjectPath.Text}");
@@ -3205,22 +3335,22 @@ namespace UnrealBinaryBuilder
 					}
 					else
 					{
-						Logger.LogError("Failed to start project build");
+						Logger.LogError(Services.ResourceHelper.GetString("ErrorBuildStartFailed"));
 						bIsBuilding = false;
 						_viewModel.IsBuilding = false;
-						BuildProjectBtn.Content = "Build Project";
-						NotificationService.ShowError("Failed to start project build");
+						BuildProjectBtn.Content = Services.ResourceHelper.GetString("BuildProject");
+						NotificationService.ShowError(Services.ResourceHelper.GetString("ErrorBuildStartFailed"));
 					}
 				}
 			}
 			catch (Exception ex)
 			{
-				Logger.LogException(ex, "Error occurred while building project");
-				ErrorHandler.HandleError(ex, "Failed to build project");
+				Logger.LogException(ex, Services.ResourceHelper.GetString("ErrorBuildProjectFailed"));
+				ErrorHandler.HandleError(ex, Services.ResourceHelper.GetString("ErrorBuildProjectFailed"));
 				bIsBuilding = false;
 				_viewModel.IsBuilding = false;
-				BuildProjectBtn.Content = "Build Project";
-				NotificationService.ShowError("Error occurred while building project");
+				BuildProjectBtn.Content = Services.ResourceHelper.GetString("BuildProject");
+				NotificationService.ShowError(Services.ResourceHelper.GetString("ErrorBuildProjectFailed"));
 			}
 		}
 
@@ -3231,11 +3361,11 @@ namespace UnrealBinaryBuilder
 			{
 				Clipboard.SetDataObject(commandLine);
 				GameAnalyticsCSharp.AddDesignEvent("Project:CommandLine:CopyToClipboard");
-				NotificationService.ShowInfo("Command line copied to clipboard");
+				NotificationService.ShowInfo(Services.ResourceHelper.GetString("MessageCommandLineCopied"));
 			}
 			else
 			{
-				NotificationService.ShowWarning("Unable to generate command line, please check settings");
+				NotificationService.ShowWarning(Services.ResourceHelper.GetString("WarningCommandLineGenerationFailed"));
 			}
 		}
 

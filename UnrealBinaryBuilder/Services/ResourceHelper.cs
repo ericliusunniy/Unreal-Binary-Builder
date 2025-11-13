@@ -6,7 +6,7 @@ using ResMgr = System.Resources.ResourceManager;
 namespace UnrealBinaryBuilder.Services
 {
 	/// <summary>
-	/// 资源辅助类 - 用于访问国际化字符串
+	/// Resource helper class - Used to access internationalized strings
 	/// </summary>
 	public static class ResourceHelper
 	{
@@ -18,16 +18,16 @@ namespace UnrealBinaryBuilder.Services
 		}
 
 		/// <summary>
-		/// 获取资源字符串
+		/// Get resource string
 		/// </summary>
 		public static string GetString(string key, params object[] args)
 		{
 			try
 			{
-				string value = _resourceManager.GetString(key, null); // null 使用当前 CultureInfo
+				string value = _resourceManager.GetString(key, null); // null uses current CultureInfo
 				if (string.IsNullOrEmpty(value))
 				{
-					return key; // 如果找不到资源，返回键名
+					return key; // If resource not found, return key name
 				}
 
 				if (args != null && args.Length > 0)
@@ -39,7 +39,7 @@ namespace UnrealBinaryBuilder.Services
 			}
 			catch
 			{
-				return key; // 发生错误时返回键名
+				return key; // Return key name on error
 			}
 		}
 	}

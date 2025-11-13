@@ -58,47 +58,195 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="Title" xml:space="preserve">
+    <value>Unreal Binary Builder</value>
+  </data>
   <data name="WelcomeMessage" xml:space="preserve">
-    <value>欢迎使用 Unreal Binary Builder v{0}</value>
+    <value>Welcome to Unreal Binary Builder v{0}</value>
   </data>
   <data name="StatusIdle" xml:space="preserve">
-    <value>空闲</value>
+    <value>Idle.</value>
   </data>
   <data name="StatusBuilding" xml:space="preserve">
-    <value>正在构建...</value>
+    <value>Building...</value>
   </data>
   <data name="StatusBuildFinished" xml:space="preserve">
-    <value>构建完成，退出代码 {0}。错误数: {1}，警告数: {2}。耗时: {3}</value>
+    <value>Build finished with code {0}. {1} errors, {2} warnings. Time elapsed: {3}</value>
   </data>
   <data name="ErrorFileNotFound" xml:space="preserve">
-    <value>文件不存在: {0}</value>
+    <value>File does not exist: {0}</value>
   </data>
   <data name="ErrorProcessStartFailed" xml:space="preserve">
-    <value>启动进程失败: {0}</value>
+    <value>Failed to start process: {0}</value>
   </data>
   <data name="WarningBuildInProgress" xml:space="preserve">
-    <value>{0} 正在运行。您可以在完成后检查更新。</value>
+    <value>{0} is currently running. You can check for updates after it is done.</value>
   </data>
   <data name="MessageBuildStarted" xml:space="preserve">
-    <value>构建已启动</value>
+    <value>Build started</value>
   </data>
   <data name="MessageBuildStopped" xml:space="preserve">
-    <value>构建已停止</value>
+    <value>Build stopped</value>
   </data>
   <data name="MessageUpdateAvailable" xml:space="preserve">
-    <value>更新 {0} 可用。</value>
+    <value>Update {0} is available.</value>
   </data>
   <data name="MessageNoUpdate" xml:space="preserve">
-    <value>您正在运行最新版本。</value>
+    <value>You are running the latest version.</value>
   </data>
   <data name="ErrorUpdateCheckFailed" xml:space="preserve">
-    <value>无法确定更新设置。请稍后重试。</value>
+    <value>Failed to determine update settings. Please try again later.</value>
   </data>
   <data name="TitleBuildInProgress" xml:space="preserve">
-    <value>构建进行中</value>
+    <value>Build in progress</value>
   </data>
   <data name="QuestionStopBuild" xml:space="preserve">
-    <value>{0} 仍在运行。您想停止它并退出吗？</value>
+    <value>{0} is still running. Would you like to stop it and exit?</value>
+  </data>
+  <!-- Project Build Resources -->
+  <data name="ProjectSettings" xml:space="preserve">
+    <value>Project Settings</value>
+  </data>
+  <data name="ProjectPath" xml:space="preserve">
+    <value>Project Path</value>
+  </data>
+  <data name="ProjectPathPlaceholder" xml:space="preserve">
+    <value>Select .uproject file</value>
+  </data>
+  <data name="EnginePath" xml:space="preserve">
+    <value>Engine Path</value>
+  </data>
+  <data name="EnginePathPlaceholder" xml:space="preserve">
+    <value>Select engine root directory</value>
+  </data>
+  <data name="Browse" xml:space="preserve">
+    <value>Browse</value>
+  </data>
+  <data name="BuildOptions" xml:space="preserve">
+    <value>Build Options</value>
+  </data>
+  <data name="TargetType" xml:space="preserve">
+    <value>Target Type</value>
+  </data>
+  <data name="TargetPlatform" xml:space="preserve">
+    <value>Target Platform</value>
+  </data>
+  <data name="Configuration" xml:space="preserve">
+    <value>Configuration</value>
+  </data>
+  <data name="OperationOptions" xml:space="preserve">
+    <value>Operation Options</value>
+  </data>
+  <data name="Build" xml:space="preserve">
+    <value>Build</value>
+  </data>
+  <data name="BuildToolTip" xml:space="preserve">
+    <value>Compile project code</value>
+  </data>
+  <data name="Cook" xml:space="preserve">
+    <value>Cook</value>
+  </data>
+  <data name="CookToolTip" xml:space="preserve">
+    <value>Cook project assets</value>
+  </data>
+  <data name="CookAll" xml:space="preserve">
+    <value>Cook All</value>
+  </data>
+  <data name="CookAllToolTip" xml:space="preserve">
+    <value>Cook all assets</value>
+  </data>
+  <data name="Package" xml:space="preserve">
+    <value>Package</value>
+  </data>
+  <data name="PackageToolTip" xml:space="preserve">
+    <value>Package project for distribution</value>
+  </data>
+  <data name="AdditionalArguments" xml:space="preserve">
+    <value>Additional Arguments</value>
+  </data>
+  <data name="AdditionalArgumentsPlaceholder" xml:space="preserve">
+    <value>Additional UAT command line arguments (optional)</value>
+  </data>
+  <data name="AdditionalArgumentsToolTip" xml:space="preserve">
+    <value>Example: -archive -archivedirectory=&quot;C:\Output&quot;</value>
+  </data>
+  <data name="BuildProject" xml:space="preserve">
+    <value>Build Project</value>
+  </data>
+  <data name="StopBuild" xml:space="preserve">
+    <value>Stop Build</value>
+  </data>
+  <data name="CopyCommandLine" xml:space="preserve">
+    <value>Copy Command Line</value>
+  </data>
+  <data name="SelectUnrealProjectFile" xml:space="preserve">
+    <value>Select Unreal Project File</value>
+  </data>
+  <data name="SelectUnrealEngineRootDirectory" xml:space="preserve">
+    <value>Select Unreal Engine Root Directory</value>
+  </data>
+  <data name="ErrorInvalidEnginePath" xml:space="preserve">
+    <value>The selected directory is not a valid Unreal Engine root directory.&#xA;&#xA;RunUAT.bat does not exist at: {0}</value>
+  </data>
+  <data name="ErrorInvalidEnginePathTitle" xml:space="preserve">
+    <value>Invalid Engine Path</value>
+  </data>
+  <data name="ErrorProjectFileRequired" xml:space="preserve">
+    <value>Please select a valid project file (.uproject)</value>
+  </data>
+  <data name="ErrorEnginePathRequired" xml:space="preserve">
+    <value>Please select engine path</value>
+  </data>
+  <data name="ErrorRunUATNotFound" xml:space="preserve">
+    <value>RunUAT.bat does not exist at: {0}&#xA;&#xA;Please ensure you selected the correct engine root directory.</value>
+  </data>
+  <data name="WarningSelectOperation" xml:space="preserve">
+    <value>Please select at least one operation option (Build, Cook, or Package)</value>
+  </data>
+  <data name="MessagePreparingBuild" xml:space="preserve">
+    <value>Preparing to build project...</value>
+  </data>
+  <data name="MessageBuildingProject" xml:space="preserve">
+    <value>Building project...</value>
+  </data>
+  <data name="MessageProjectBuildStarted" xml:space="preserve">
+    <value>Project build started</value>
+  </data>
+  <data name="ErrorBuildStartFailed" xml:space="preserve">
+    <value>Failed to start project build</value>
+  </data>
+  <data name="ErrorBuildProjectFailed" xml:space="preserve">
+    <value>Error occurred while building project</value>
+  </data>
+  <data name="ErrorBuildCommandLineFailed" xml:space="preserve">
+    <value>Error occurred while building project command line: {0}</value>
+  </data>
+  <data name="MessageProjectBuildStopped" xml:space="preserve">
+    <value>Project build stopped</value>
+  </data>
+  <data name="MessageProjectBuildCompleted" xml:space="preserve">
+    <value>Project build completed!</value>
+  </data>
+  <data name="MessageProjectBuildCompletedSuccess" xml:space="preserve">
+    <value>Project build completed successfully.</value>
+  </data>
+  <data name="ErrorProjectBuildFailed" xml:space="preserve">
+    <value>Project build failed. Please check the log for details.</value>
+  </data>
+  <data name="ErrorProjectBuildFailedLog" xml:space="preserve">
+    <value>Project build failed.</value>
+  </data>
+  <data name="MessageCommandLineCopied" xml:space="preserve">
+    <value>Command line copied to clipboard</value>
+  </data>
+  <data name="WarningCommandLineGenerationFailed" xml:space="preserve">
+    <value>Unable to generate command line, please check settings</value>
+  </data>
+  <data name="QuestionStopBuildTask" xml:space="preserve">
+    <value>A build task is already running. Do you want to stop the current task and start project build?</value>
+  </data>
+  <data name="TitleBuildTaskRunning" xml:space="preserve">
+    <value>Build Task Running</value>
   </data>
 </root>
 

@@ -6,7 +6,8 @@
 				xmlns:hc="https://handyorg.github.io/handycontrol" 
 				xmlns:local="clr-namespace:UnrealBinaryBuilder.UserControls"
 				xmlns:Classes="clr-namespace:UnrealBinaryBuilder.Classes" 
-				xmlns:local1="clr-namespace:UnrealBinaryBuilder"	x:Name="UnrealBinaryBuilderWindow"
+				xmlns:local1="clr-namespace:UnrealBinaryBuilder"
+				xmlns:res="clr-namespace:UnrealBinaryBuilder.Services"	x:Name="UnrealBinaryBuilderWindow"
 				x:Class="UnrealBinaryBuilder.MainWindow" 
 				mc:Ignorable="d"
 				Background="{DynamicResource MainContentBackgroundBrush}"
@@ -335,7 +336,7 @@
 						</Grid.RowDefinitions>
 						
 						<!-- Project Path Selection -->
-						<GroupBox Header="Project Settings" Grid.Row="0" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
+						<GroupBox x:Name="ProjectSettingsGroupBox" Grid.Row="0" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
 							<StackPanel Margin="10">
 								<Grid Margin="0,5">
 									<Grid.ColumnDefinitions>
@@ -343,9 +344,9 @@
 										<ColumnDefinition Width="*"/>
 										<ColumnDefinition Width="Auto"/>
 									</Grid.ColumnDefinitions>
-									<TextBlock Text="Project Path" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
-									<hc:TextBox x:Name="ProjectPath" hc:InfoElement.Placeholder="Select .uproject file" Grid.Column="1" Text="{Binding ProjectPath}" Margin="0,0,10,0"/>
-									<Button x:Name="ProjectPathBrowse" Content="Browse" Grid.Column="2" Click="ProjectPathBrowse_Click"/>
+									<TextBlock x:Name="ProjectPathLabel" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
+									<hc:TextBox x:Name="ProjectPath" Grid.Column="1" Text="{Binding ProjectPath}" Margin="0,0,10,0"/>
+									<Button x:Name="ProjectPathBrowse" Grid.Column="2" Click="ProjectPathBrowse_Click"/>
 								</Grid>
 								
 								<Grid Margin="0,5">
@@ -354,15 +355,15 @@
 										<ColumnDefinition Width="*"/>
 										<ColumnDefinition Width="Auto"/>
 									</Grid.ColumnDefinitions>
-									<TextBlock Text="Engine Path" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
-									<hc:TextBox x:Name="ProjectEnginePath" hc:InfoElement.Placeholder="Select engine root directory" Grid.Column="1" Text="{Binding ProjectEnginePath}" Margin="0,0,10,0"/>
-									<Button x:Name="ProjectEnginePathBrowse" Content="Browse" Grid.Column="2" Click="ProjectEnginePathBrowse_Click"/>
+									<TextBlock x:Name="EnginePathLabel" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
+									<hc:TextBox x:Name="ProjectEnginePath" Grid.Column="1" Text="{Binding ProjectEnginePath}" Margin="0,0,10,0"/>
+									<Button x:Name="ProjectEnginePathBrowse" Grid.Column="2" Click="ProjectEnginePathBrowse_Click"/>
 								</Grid>
 							</StackPanel>
 						</GroupBox>
 
 						<!-- Build Options -->
-						<GroupBox Header="Build Options" Grid.Row="1" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
+						<GroupBox x:Name="BuildOptionsGroupBox" Grid.Row="1" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
 							<StackPanel Margin="10">
 								<Grid>
 									<Grid.ColumnDefinitions>
@@ -374,14 +375,14 @@
 										<ColumnDefinition Width="*"/>
 									</Grid.ColumnDefinitions>
 									
-									<TextBlock Text="Target Type" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
+									<TextBlock x:Name="TargetTypeLabel" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,10,0"/>
 									<hc:ComboBox x:Name="ProjectTargetType" Grid.Column="1" Margin="0,0,10,0">
 										<ComboBoxItem Content="Editor" IsSelected="True"/>
 										<ComboBoxItem Content="Client"/>
 										<ComboBoxItem Content="Server"/>
 									</hc:ComboBox>
 									
-									<TextBlock Text="Target Platform" VerticalAlignment="Center" Grid.Column="2" Margin="0,0,10,0"/>
+									<TextBlock x:Name="TargetPlatformLabel" VerticalAlignment="Center" Grid.Column="2" Margin="0,0,10,0"/>
 									<hc:ComboBox x:Name="ProjectTargetPlatform" Grid.Column="3" Margin="0,0,10,0">
 										<ComboBoxItem Content="Win64" IsSelected="True"/>
 										<ComboBoxItem Content="Win32"/>
@@ -391,7 +392,7 @@
 										<ComboBoxItem Content="Mac"/>
 									</hc:ComboBox>
 									
-									<TextBlock Text="Configuration" VerticalAlignment="Center" Grid.Column="4" Margin="0,0,10,0"/>
+									<TextBlock x:Name="ConfigurationLabel" VerticalAlignment="Center" Grid.Column="4" Margin="0,0,10,0"/>
 									<hc:ComboBox x:Name="ProjectConfiguration" Grid.Column="5">
 										<ComboBoxItem Content="Development" IsSelected="True"/>
 										<ComboBoxItem Content="Debug"/>
@@ -403,26 +404,26 @@
 						</GroupBox>
 
 						<!-- Operation Options -->
-						<GroupBox Header="Operation Options" Grid.Row="2" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
+						<GroupBox x:Name="OperationOptionsGroupBox" Grid.Row="2" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
 							<WrapPanel Margin="10">
-								<CheckBox x:Name="ProjectBuild" Content="Build" IsChecked="{Binding ProjectBuild}" Margin="10" ToolTip="Compile project code"/>
-								<CheckBox x:Name="ProjectCook" Content="Cook" IsChecked="{Binding ProjectCook}" Margin="10" ToolTip="Cook project assets"/>
-								<CheckBox x:Name="ProjectCookAll" Content="Cook All" IsChecked="{Binding ProjectCookAll}" Margin="10" ToolTip="Cook all assets" IsEnabled="{Binding IsChecked, ElementName=ProjectCook}"/>
-								<CheckBox x:Name="ProjectPackage" Content="Package" IsChecked="{Binding ProjectPackage}" Margin="10" ToolTip="Package project for distribution"/>
+								<CheckBox x:Name="ProjectBuild" IsChecked="{Binding ProjectBuild}" Margin="10"/>
+								<CheckBox x:Name="ProjectCook" IsChecked="{Binding ProjectCook}" Margin="10"/>
+								<CheckBox x:Name="ProjectCookAll" IsChecked="{Binding ProjectCookAll}" Margin="10" IsEnabled="{Binding IsChecked, ElementName=ProjectCook}"/>
+								<CheckBox x:Name="ProjectPackage" IsChecked="{Binding ProjectPackage}" Margin="10"/>
 							</WrapPanel>
 						</GroupBox>
 
 						<!-- Additional Arguments -->
-						<GroupBox Header="Additional Arguments" Grid.Row="3" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
+						<GroupBox x:Name="AdditionalArgumentsGroupBox" Grid.Row="3" Margin="0,0,0,10" Style="{StaticResource GroupBoxOriginal}">
 							<StackPanel Margin="10">
-								<hc:TextBox x:Name="ProjectAdditionalArgs" hc:InfoElement.Placeholder="Additional UAT command line arguments (optional)" Text="{Binding ProjectAdditionalArgs}" ToolTip="Example: -archive -archivedirectory=&quot;C:\Output&quot;"/>
+								<hc:TextBox x:Name="ProjectAdditionalArgs" Text="{Binding ProjectAdditionalArgs}"/>
 							</StackPanel>
 						</GroupBox>
 
 						<!-- Build Buttons -->
 						<StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,10,0,0">
-							<Button x:Name="BuildProjectBtn" Content="Build Project" Style="{StaticResource ButtonPrimary}" Width="150" Height="35" Click="BuildProjectBtn_Click" Margin="0,0,10,0"/>
-							<Button x:Name="CopyProjectCommandLineBtn" Content="Copy Command Line" Width="150" Height="35" Click="CopyProjectCommandLineBtn_Click"/>
+							<Button x:Name="BuildProjectBtn" Style="{StaticResource ButtonPrimary}" Width="150" Height="35" Click="BuildProjectBtn_Click" Margin="0,0,10,0"/>
+							<Button x:Name="CopyProjectCommandLineBtn" Width="150" Height="35" Click="CopyProjectCommandLineBtn_Click"/>
 						</StackPanel>
 					</Grid>
 				</hc:TabItem>
