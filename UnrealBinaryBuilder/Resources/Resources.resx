@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="WelcomeMessage" xml:space="preserve">
+    <value>欢迎使用 Unreal Binary Builder v{0}</value>
+  </data>
+  <data name="StatusIdle" xml:space="preserve">
+    <value>空闲</value>
+  </data>
+  <data name="StatusBuilding" xml:space="preserve">
+    <value>正在构建...</value>
+  </data>
+  <data name="StatusBuildFinished" xml:space="preserve">
+    <value>构建完成，退出代码 {0}。错误数: {1}，警告数: {2}。耗时: {3}</value>
+  </data>
+  <data name="ErrorFileNotFound" xml:space="preserve">
+    <value>文件不存在: {0}</value>
+  </data>
+  <data name="ErrorProcessStartFailed" xml:space="preserve">
+    <value>启动进程失败: {0}</value>
+  </data>
+  <data name="WarningBuildInProgress" xml:space="preserve">
+    <value>{0} 正在运行。您可以在完成后检查更新。</value>
+  </data>
+  <data name="MessageBuildStarted" xml:space="preserve">
+    <value>构建已启动</value>
+  </data>
+  <data name="MessageBuildStopped" xml:space="preserve">
+    <value>构建已停止</value>
+  </data>
+  <data name="MessageUpdateAvailable" xml:space="preserve">
+    <value>更新 {0} 可用。</value>
+  </data>
+  <data name="MessageNoUpdate" xml:space="preserve">
+    <value>您正在运行最新版本。</value>
+  </data>
+  <data name="ErrorUpdateCheckFailed" xml:space="preserve">
+    <value>无法确定更新设置。请稍后重试。</value>
+  </data>
+  <data name="TitleBuildInProgress" xml:space="preserve">
+    <value>构建进行中</value>
+  </data>
+  <data name="QuestionStopBuild" xml:space="preserve">
+    <value>{0} 仍在运行。您想停止它并退出吗？</value>
+  </data>
+</root>
+

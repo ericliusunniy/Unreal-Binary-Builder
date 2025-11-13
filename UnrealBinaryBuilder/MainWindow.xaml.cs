@@ -17,6 +17,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using UnrealBinaryBuilder.Classes;
+using UnrealBinaryBuilder.Services;
+using UnrealBinaryBuilder.Services.Extensions;
 using UnrealBinaryBuilder.UserControls;
 using UnrealBinaryBuilderUpdater;
 using System.Windows.Data;
@@ -485,6 +487,27 @@ namespace UnrealBinaryBuilder
 	}
 	public partial class MainWindow
 	{
+		#region 服务容器和视图模型
+		// 服务容器 - 统一管理所有服务
+		private readonly ServiceContainer _services;
+		private readonly MainWindowViewModel _viewModel;
+
+		// 服务引用（方便访问）
+		private ILogger Logger => _services.Logger;
+		private IProcessManager ProcessManager => _services.ProcessManager;
+		private IBuildManager BuildManager => _services.BuildManager;
+		private UpdateManager UpdateManager => _services.UpdateManager;
+		private EngineVersionDetector VersionDetector => _services.VersionDetector;
+		private CommandLineBuilder CommandLineBuilder => _services.CommandLineBuilder;
+		private LogParser LogParser => _services.LogParser;
+		private NotificationService NotificationService => _services.NotificationService;
+		private ThemeManager ThemeManager => _services.ThemeManager;
+		private SettingsManager SettingsManager => _services.SettingsManager;
+		private PerformanceMonitor PerformanceMonitor => _services.PerformanceMonitor;
+		private ErrorHandler ErrorHandler => _services.ErrorHandler;
+		#endregion
+
+		#region 旧字段（逐步迁移中）
 		private Process CurrentProcess = null;
 
 		private int NumErrors = 0;
@@ -520,6 +543,7 @@ namespace UnrealBinaryBuilder
 		private bool bMissingVS2022WarningShown = false;
 
 		public bool AutomationExePathPathIsValid => File.Exists(AutomationExePath);
+		#endregion
 
 		public enum ZipLogInclusionType
 		{
@@ -544,20 +568,45 @@ namespace UnrealBinaryBuilder
 		public MainWindow()
 		{
 			InitializeComponent();
+
+			// 初始化服务容器
+			_services = new ServiceContainer();
+			_viewModel = new MainWindowViewModel();
+
+			// 初始化 GameAnalytics
 			GameAnalyticsCSharp.InitializeGameAnalytics(UnrealBinaryBuilderHelpers.GetProductVersionString(), this);
-			AddLogEntry($"Welcome to Unreal Binary Builder v{UnrealBinaryBuilderHelpers.GetProductVersionString()}");
+
+			// 使用新的日志服务
+			string version = UnrealBinaryBuilderHelpers.GetProductVersionString();
+			string welcomeMessage = Services.ResourceHelper.GetString("WelcomeMessage", version);
+			if (string.IsNullOrEmpty(welcomeMessage))
+			{
+				welcomeMessage = $"Welcome to Unreal Binary Builder v{version}";
+			}
+			AddLogEntry(welcomeMessage);
+			Logger.LogInfo(welcomeMessage);
+
 			PluginQueueBtn.IsEnabled = false;
 			postBuildSettings = new PostBuildSettings(this);
-			SettingsJSON = BuilderSettings.GetSettingsFile(true);
+
+			// 使用新的设置管理器
+			SettingsJSON = SettingsManager.Settings ?? BuilderSettings.GetSettingsFile(true);
+			_viewModel.Settings = SettingsJSON;
 			BuilderSettings.LoadInitialValues();
 			DataContext = SettingsJSON;
+
+			// 订阅服务事件
+			SubscribeToServiceEvents();
+
 			InitializeVisualStudioPreferences();
 
 			if (Plugins.GetInstalledEngines() == null)
 			{
 				PluginsTab.Visibility = Visibility.Collapsed;
-				AddLogEntry("Could not find any installed Engine versions. Plugins tab is disabled.", true);
-				ShowToastMessage("Could not find any installed Engine versions. Plugins tab is disabled.", LogViewer.EMessageType.Error);
+				string errorMessage = "Could not find any installed Engine versions. Plugins tab is disabled.";
+				AddLogEntry(errorMessage, true);
+				Logger.LogError(errorMessage);
+				NotificationService.ShowError(errorMessage);
 			}
 			else
 			{
@@ -571,7 +620,9 @@ namespace UnrealBinaryBuilder
 					}
 					else
 					{
-						AddLogEntry($"{engineBuild.EngineName} will not be available for Plugin build. RunUAT.bat does not exist in {Path.GetDirectoryName(RunUATFile)}.", true);
+						string warningMessage = $"{engineBuild.EngineName} will not be available for Plugin build. RunUAT.bat does not exist in {Path.GetDirectoryName(RunUATFile)}.";
+						AddLogEntry(warningMessage, true);
+						Logger.LogWarning(warningMessage);
 					}
 				}
 			}
@@ -582,32 +633,75 @@ namespace UnrealBinaryBuilder
 			}
 
 			ChangeStatusLabel("Idle.");
+			_viewModel.StatusText = Services.ResourceHelper.GetString("StatusIdle", "Idle.");
 
 			DispatchTimer.Tick += new EventHandler(DispatchTimer_Tick);
 			DispatchTimer.Interval = new TimeSpan(0, 0, 1);
 
+			// 使用新的主题管理器
 			CurrentTheme = SettingsJSON.Theme;
-			if (CurrentTheme.ToLower() == "violet")
+			if (!string.IsNullOrEmpty(CurrentTheme))
 			{
-				ShowToastMessage("Violet theme is not fully supported yet.", LogViewer.EMessageType.Warning, true, false, "Important", 4);
-				UpdateSkin(SkinType.Violet);				
+				try
+				{
+					ThemeManager.ApplyTheme(CurrentTheme);
+					if (CurrentTheme.ToLower() == "violet")
+					{
+						NotificationService.ShowWarning("Violet theme is not fully supported yet.", token: "Important", waitTime: 4);
+					}
+					else if (CurrentTheme.ToLower() != "dark")
+					{
+						NotificationService.ShowWarning("Default theme is not fully supported yet.", token: "Important", waitTime: 4);
+					}
+				}
+				catch (Exception ex)
+				{
+					Logger.LogException(ex, "应用主题时发生错误");
+					// 回退到旧方法
+					if (CurrentTheme.ToLower() == "violet")
+					{
+						ShowToastMessage("Violet theme is not fully supported yet.", LogViewer.EMessageType.Warning, true, false, "Important", 4);
+						UpdateSkin(SkinType.Violet);
+					}
+					else if (CurrentTheme.ToLower() == "dark")
+					{
+						UpdateSkin(SkinType.Dark);
+					}
+					else
+					{
+						ShowToastMessage("Default theme is not fully supported yet.", LogViewer.EMessageType.Warning, true, false, "Important", 4);
+						UpdateSkin(SkinType.Default);
+					}
+				}
 			}
-			else if (CurrentTheme.ToLower() == "dark")
-			{
-				UpdateSkin(SkinType.Dark);
-			}
-			else
-			{
-				ShowToastMessage("Default theme is not fully supported yet.", LogViewer.EMessageType.Warning, true, false, "Important", 4);
-				UpdateSkin(SkinType.Default);
-			}
+
 			ZipStatusLabel.Visibility = Visibility.Visible;
 			ZipStausStackPanel.Visibility = Visibility.Collapsed;
 
+			// 使用新的更新管理器
 			if (SettingsJSON.bCheckForUpdatesAtStartup)
 			{
-				CheckForUpdates();
+				UpdateManager.CheckForUpdatesSilently();
 			}
+		}
+
+		/// <summary>
+		/// 订阅服务事件
+		/// </summary>
+		private void SubscribeToServiceEvents()
+		{
+			// 构建管理器事件
+			BuildManager.BuildFinished += OnBuildFinished;
+
+			// 进程管理器事件
+			ProcessManager.OutputDataReceived += OnProcessOutputReceived;
+			ProcessManager.ErrorDataReceived += OnProcessErrorReceived;
+			ProcessManager.ProcessExited += OnProcessExited;
+
+			// 更新管理器事件
+			UpdateManager.UpdateCheckCompleted += OnUpdateCheckCompleted;
+			UpdateManager.UpdateDownloadProgress += OnUpdateDownloadProgress;
+			UpdateManager.UpdateDownloadFinished += OnUpdateDownloadFinished;
 		}
 
 		public static void OpenBrowser(string InURL)
@@ -649,22 +743,23 @@ namespace UnrealBinaryBuilder
 
 		private void CheckForUpdates()
 		{
-			if (CurrentProcess == null)
+			// 使用新的更新管理器
+			if (!ProcessManager.IsProcessRunning && CurrentProcess == null)
 			{
 				CheckUpdateBtn.IsEnabled = false;
 				CheckUpdateBtn.Content = "Checking...";
-				if (unrealBinaryBuilderUpdater == null)
-				{
-					unrealBinaryBuilderUpdater = new UBBUpdater();
-				}
-
 				GameAnalyticsCSharp.AddDesignEvent("Update:Check");
-				unrealBinaryBuilderUpdater.SilentUpdateFinishedEventHandler += OnUpdateCheck;
-				unrealBinaryBuilderUpdater.CheckForUpdatesSilently();
+				UpdateManager.CheckForUpdatesSilently();
 			}
 			else
 			{
-				ShowToastMessage($"{GetCurrentProcessName()} is currently running. You can check for updates after it is done.", LogViewer.EMessageType.Error);
+				string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName() ?? "进程";
+				string message = Services.ResourceHelper.GetString("WarningBuildInProgress", processName);
+				if (string.IsNullOrEmpty(message))
+				{
+					message = $"{processName} is currently running. You can check for updates after it is done.";
+				}
+				NotificationService.ShowError(message);
 			}
 		}
 
@@ -763,39 +858,67 @@ namespace UnrealBinaryBuilder
 
 		public void ShowToastMessage(string Message, LogViewer.EMessageType ToastType = LogViewer.EMessageType.Info, bool bShowCloseButton = true, bool bStaysOpen = false, string Token = "", int WaitTime = 3)
 		{
-			Growl.Clear(Token);
-			GrowlInfo growlInfo = new GrowlInfo()
+			// 使用新的通知服务
+			try
 			{
-				ShowDateTime = false,
-				ShowCloseButton = bShowCloseButton,
-				StaysOpen = bStaysOpen,
-				Token = Token,
-				WaitTime = WaitTime
-			};
+				switch (ToastType)
+				{
+					case LogViewer.EMessageType.Info:
+						NotificationService.ShowInfo(Message, bShowCloseButton, bStaysOpen, Token, WaitTime);
+						break;
+					case LogViewer.EMessageType.Warning:
+						NotificationService.ShowWarning(Message, bShowCloseButton, bStaysOpen, Token, WaitTime);
+						break;
+					case LogViewer.EMessageType.Error:
+						NotificationService.ShowError(Message, bShowCloseButton, bStaysOpen, Token, WaitTime);
+						break;
+				}
+			}
+			catch (Exception ex)
+			{
+				// 如果新服务失败，回退到旧方法
+				Logger.LogException(ex, "显示通知时发生错误，使用旧方法");
+				Growl.Clear(Token);
+				GrowlInfo growlInfo = new GrowlInfo()
+				{
+					ShowDateTime = false,
+					ShowCloseButton = bShowCloseButton,
+					StaysOpen = bStaysOpen,
+					Token = Token,
+					WaitTime = WaitTime,
+					Message = Message
+				};
 
-			growlInfo.Message = Message;
-			switch (ToastType)
-			{
-				case LogViewer.EMessageType.Info:
-					Growl.Info(growlInfo);
-					break;
-				case LogViewer.EMessageType.Warning:
-					Growl.Warning(growlInfo);
-					break;
-				case LogViewer.EMessageType.Error:
-					Growl.Error(growlInfo);
-					break;
+				switch (ToastType)
+				{
+					case LogViewer.EMessageType.Info:
+						Growl.Info(growlInfo);
+						break;
+					case LogViewer.EMessageType.Warning:
+						Growl.Warning(growlInfo);
+						break;
+					case LogViewer.EMessageType.Error:
+						Growl.Error(growlInfo);
+						break;
+				}
 			}
 		}
 
 		private void ChangeStatusLabel(string InStatus)
 		{
-			StatusLabel.Text = GetCurrentProcessName() != null ? $"Status: Running [{GetCurrentProcessName()} - {InStatus}]" : $"Status: {InStatus}";
+			// 使用异步更新，避免阻塞 UI 线程
+			Dispatcher.InvokeAsync(() =>
+			{
+				string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName();
+				StatusLabel.Text = processName != null ? $"Status: Running [{processName} - {InStatus}]" : $"Status: {InStatus}";
+				_viewModel.StatusText = StatusLabel.Text;
+			});
 		}
 
 		private void ChangeStepLabel(string current, string total)
 		{
-			Dispatcher.Invoke(() => { StepLabel.Text = $"Step: [{current}/{total}] "; });
+			// 使用异步更新，避免阻塞
+			Dispatcher.InvokeAsync(() => { StepLabel.Text = $"Step: [{current}/{total}] "; });
 		}
 
 		private string GetConditionalString(bool? bCondition)
@@ -817,64 +940,64 @@ namespace UnrealBinaryBuilder
 
 		public void AddLogEntry(string InMessage, bool bIsError = false)
 		{
-			if (InMessage != null)
+			if (InMessage == null)
+				return;
+
+			// 使用新的日志服务
+			if (bIsError)
 			{
-				LogEntry logEntry = new LogEntry();
-				logEntry.Message = InMessage;
-
-				LogViewer.EMessageType InMessageType = bIsError ? LogViewer.EMessageType.Error : LogViewer.EMessageType.Info;
-
-				if (!bIsError)
-				{
-					const string StepPattern = @"\*{6} \[(\d+)\/(\d+)\]";
-					const string WarningPattern = @"warning|\*\*\* Unable to determine ";
-					const string DebugPattern = @".+\*\s\D\d\D\d\D\s\w+|.+\*\sFor\sUE4";
-					const string ErrorPattern = @"Error_Unknown|ERROR|exited with code 1";
-					const string ProcessedFilesPattern = @"\w.+\.(cpp|cc|c|h|ispc)";
-
-					Regex StepRgx = new Regex(StepPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-					Regex WarningRgx = new Regex(WarningPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-					Regex DebugRgx = new Regex(DebugPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-					Regex ErrorRgx = new Regex(ErrorPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-					Regex ProcessedFilesRgx = new Regex(ProcessedFilesPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-					if (StepRgx.IsMatch(InMessage))
-					{
-						GroupCollection captures = StepRgx.Match(InMessage).Groups;
-						ChangeStepLabel(captures[1].Value, captures[2].Value);
-						CompiledFiles = 0;
-					}
-
-					if (ProcessedFilesRgx.IsMatch(InMessage))
-					{
-						CompiledFiles++;
-						CompiledFilesTotal++;
-						Dispatcher.Invoke(() => 
-						{ 
-							ProcessedFilesLabel.Text = $"[Compiled: {CompiledFiles}. Total: {CompiledFilesTotal}]"; 
-						});
-					}
-
-					if (WarningRgx.IsMatch(InMessage))
-					{
-						NumWarnings++;
-						InMessageType = LogViewer.EMessageType.Warning;
-					}
-					else if (ErrorRgx.IsMatch(InMessage) && !InMessage.Contains("ShadowError") && !InMessage.Contains("error_details.") && !InMessage.Contains("error_code."))
-					{
-						NumErrors++;
-						InMessageType = LogViewer.EMessageType.Error;
-						LogMessageErrors += InMessage + "\r\n";
-					}
-					else if (DebugRgx.IsMatch(InMessage))
-					{
-						InMessageType = LogViewer.EMessageType.Debug;
-					}
-				}
-
-				LogControl.AddLogEntry(logEntry, InMessageType);
-				LogMessage += InMessage + "\r\n";
+				Logger.LogError(InMessage);
 			}
+			else
+			{
+				Logger.LogInfo(InMessage);
+			}
+
+			// 使用新的日志解析器
+			var parseResult = LogParser.ParseLogMessage(InMessage, bIsError);
+
+			LogEntry logEntry = new LogEntry();
+			logEntry.Message = InMessage;
+
+			LogViewer.EMessageType InMessageType = parseResult.MessageType;
+
+			// 处理步骤信息
+			if (parseResult.IsStepInfo)
+			{
+				ChangeStepLabel(parseResult.StepCurrent.ToString(), parseResult.StepTotal.ToString());
+				CompiledFiles = 0;
+				_viewModel.CompiledFiles = 0;
+			}
+
+			// 处理编译文件
+			if (parseResult.IsProcessedFile)
+			{
+				CompiledFiles++;
+				CompiledFilesTotal++;
+				_viewModel.CompiledFiles++;
+				_viewModel.CompiledFilesTotal++;
+				Dispatcher.InvokeAsync(() => 
+				{ 
+					ProcessedFilesLabel.Text = $"[Compiled: {CompiledFiles}. Total: {CompiledFilesTotal}]"; 
+				});
+			}
+
+			// 更新错误和警告计数
+			if (parseResult.IsWarning)
+			{
+				NumWarnings++;
+				_viewModel.WarningCount++;
+			}
+			else if (parseResult.IsError)
+			{
+				NumErrors++;
+				_viewModel.ErrorCount++;
+				LogMessageErrors += InMessage + "\r\n";
+			}
+
+			// 添加到 UI 日志控件
+			LogControl.AddLogEntry(logEntry, InMessageType);
+			LogMessage += InMessage + "\r\n";
 		}
 
 		private void Internal_ShutdownWindows()
@@ -885,16 +1008,37 @@ namespace UnrealBinaryBuilder
 
 		private void SaveAllSettings()
 		{
-			BuilderSettings.SaveSettings();
+			// 使用新的设置管理器
+			try
+			{
+				SettingsManager.SaveSettings();
+				// 同时保存到旧的位置（向后兼容）
+				BuilderSettings.SaveSettings();
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "保存设置时发生错误");
+				// 回退到旧方法
+				BuilderSettings.SaveSettings();
+			}
 		}
 
 		private void UnrealBinaryBuilderWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
 		{
-			if (bIsBuilding)
+			// 使用新的构建管理器检查构建状态
+			if (BuildManager.IsBuilding || bIsBuilding)
 			{
-				if (HandyControl.Controls.MessageBox.Show($"{GetCurrentProcessName()} is still running. Would you like to stop it and exit?", "Build in progress", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+				string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName() ?? "进程";
+				string question = Services.ResourceHelper.GetString("QuestionStopBuild", processName);
+				if (string.IsNullOrEmpty(question))
 				{
-					GameAnalyticsCSharp.AddDesignEvent($"Build:{GetCurrentProcessName()}:Killed:ExitProgram");
+					question = $"{processName} is still running. Would you like to stop it and exit?";
+				}
+
+				if (HandyControl.Controls.MessageBox.Show(question, Services.ResourceHelper.GetString("TitleBuildInProgress", "Build in progress"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+				{
+					GameAnalyticsCSharp.AddDesignEvent($"Build:{processName}:Killed:ExitProgram");
+					BuildManager.StopBuild();
 					CloseCurrentProcess(true);
 				}
 				else
@@ -907,6 +1051,9 @@ namespace UnrealBinaryBuilder
 			GameAnalyticsCSharp.EndSession();
 			SaveAllSettings();
 
+			// 释放服务资源
+			_services?.Dispose();
+
 			Application.Current.Shutdown();
 		}
 
@@ -918,20 +1065,151 @@ namespace UnrealBinaryBuilder
 		private void CurrentProcess_ErrorDataReceived(object sender, DataReceivedEventArgs e)
 		{
 			NumErrors++;
+			_viewModel.ErrorCount++;
 			AddLogEntry(e.Data, true);
+		}
+
+		/// <summary>
+		/// 进程输出数据接收事件（新服务）
+		/// </summary>
+		private void OnProcessOutputReceived(object sender, string data)
+		{
+			if (string.IsNullOrWhiteSpace(data))
+				return;
+
+			Dispatcher.InvokeAsync(() =>
+			{
+				AddLogEntry(data);
+			});
+		}
+
+		/// <summary>
+		/// 进程错误数据接收事件（新服务）
+		/// </summary>
+		private void OnProcessErrorReceived(object sender, string data)
+		{
+			if (string.IsNullOrWhiteSpace(data))
+				return;
+
+			Dispatcher.InvokeAsync(() =>
+			{
+				NumErrors++;
+				_viewModel.ErrorCount++;
+				AddLogEntry(data, true);
+			});
+		}
+
+		/// <summary>
+		/// 进程退出事件（新服务）
+		/// </summary>
+		private void OnProcessExited(object sender, ProcessExitedEventArgs e)
+		{
+			Dispatcher.InvokeAsync(() =>
+			{
+				Logger.LogInfo($"进程退出，退出代码: {e.ExitCode}");
+				// 这里可以添加额外的处理逻辑
+			});
+		}
+
+		/// <summary>
+		/// 构建完成事件（新服务）
+		/// </summary>
+		private void OnBuildFinished(object sender, BuildFinishedEventArgs e)
+		{
+			Dispatcher.InvokeAsync(() =>
+			{
+				bIsBuilding = false;
+				bLastBuildSuccess = e.Success;
+				NumErrors = e.ErrorCount;
+				NumWarnings = e.WarningCount;
+				_viewModel.ErrorCount = e.ErrorCount;
+				_viewModel.WarningCount = e.WarningCount;
+				_viewModel.IsBuilding = false;
+
+				string statusMessage = Services.ResourceHelper.GetString("StatusBuildFinished",
+					e.ExitCode, e.ErrorCount, e.WarningCount, e.ElapsedTime.ToString(@"hh\:mm\:ss"));
+				if (string.IsNullOrEmpty(statusMessage))
+				{
+					statusMessage = $"Build finished with code {e.ExitCode}. {e.ErrorCount} errors, {e.WarningCount} warnings. Time elapsed: {e.ElapsedTime:hh\\:mm\\:ss}";
+				}
+				ChangeStatusLabel(statusMessage);
+				_viewModel.StatusText = statusMessage;
+
+				AddLogEntry($"构建完成。成功: {e.Success}, 错误: {e.ErrorCount}, 警告: {e.WarningCount}");
+
+				// 调用原有的构建完成处理逻辑
+				OnBuildFinishedInternal(e.Success);
+			});
+		}
+
+		/// <summary>
+		/// 更新检查完成事件（新服务）
+		/// </summary>
+		private void OnUpdateCheckCompleted(object sender, UpdateCheckEventArgs e)
+		{
+			Dispatcher.InvokeAsync(() =>
+			{
+				switch (e.Status)
+				{
+					case UpdateCheckStatus.UpdateAvailable:
+						bUpdateAvailable = true;
+						CheckUpdateBtn.Content = $"Install Update {e.Version}";
+						NotificationService.ShowInfo(e.Message);
+						// 显示更新对话框
+						downloadDialogWindow = new DownloadDialog(this, e.Version);
+						downloadDialog = Dialog.Show(downloadDialogWindow);
+						break;
+					case UpdateCheckStatus.NoUpdate:
+						NotificationService.ShowInfo(e.Message);
+						break;
+					case UpdateCheckStatus.Error:
+						NotificationService.ShowError(e.Message);
+						break;
+				}
+				CheckUpdateBtn.IsEnabled = true;
+				CheckUpdateBtn.Content = "Check for Update";
+			});
+		}
+
+		/// <summary>
+		/// 更新下载进度事件（新服务）
+		/// </summary>
+		private void OnUpdateDownloadProgress(object sender, UpdateDownloadEventArgs e)
+		{
+			Dispatcher.InvokeAsync(() =>
+			{
+				if (downloadDialogWindow != null)
+				{
+					downloadDialogWindow.SetProgress((int)e.Progress);
+				}
+			});
+		}
+
+		/// <summary>
+		/// 更新下载完成事件（新服务）
+		/// </summary>
+		private void OnUpdateDownloadFinished(object sender, EventArgs e)
+		{
+			Dispatcher.InvokeAsync(() =>
+			{
+				Logger.LogInfo("更新下载完成");
+				// 原有的下载完成逻辑会在这里处理
+			});
 		}
 
 		private void CurrentProcess_Exited(object sender, EventArgs e)
 		{
+			// 使用 ProcessManager 的事件处理器，这里保留作为回退
 			DispatchTimer.Stop();
 			StopwatchTimer.Stop();
-			bLastBuildSuccess = CurrentProcess.ExitCode == 0;
-			AddLogEntry(string.Format($"{GetCurrentProcessName()} exited with code {0}\n", CurrentProcess.ExitCode.ToString()));
+			bLastBuildSuccess = CurrentProcess?.ExitCode == 0;
+			string processName = ProcessManager.GetCurrentProcessName() ?? GetCurrentProcessName() ?? "进程";
+			AddLogEntry(string.Format($"{processName} exited with code {0}\n", CurrentProcess?.ExitCode.ToString() ?? "0"));
 
-			Dispatcher.Invoke(() =>
+			Dispatcher.InvokeAsync(() =>
 			{
 				BuildRocketUE.Content = "Build Unreal Engine";
-				ChangeStatusLabel(string.Format("Build finished with code {0}. {1} errors, {2} warnings. Time elapsed: {3:hh\\:mm\\:ss}", CurrentProcess.ExitCode, NumErrors, NumWarnings, StopwatchTimer.Elapsed));
+				ChangeStatusLabel(string.Format("Build finished with code {0}. {1} errors, {2} warnings. Time elapsed: {3:hh\\:mm\\:ss}", CurrentProcess?.ExitCode ?? 0, NumErrors, NumWarnings, StopwatchTimer.Elapsed));
 			});
 
 			CloseCurrentProcess();
@@ -943,15 +1221,18 @@ namespace UnrealBinaryBuilder
 			AddLogEntry(string.Format("Took {0:hh\\:mm\\:ss}", StopwatchTimer.Elapsed));
 			AddLogEntry(string.Format("Build ended at {0}", DateTime.Now.ToString("dddd, dd MMMM yyyy HH:mm:ss")));
 			StopwatchTimer.Reset();
-			Dispatcher.Invoke(() =>
+			Dispatcher.InvokeAsync(() =>
 			{
 				StartSetupBatFile.IsEnabled = true;
 				StartPluginBuildsBtn.IsEnabled = true;
-				OnBuildFinished(bLastBuildSuccess);
+				OnBuildFinishedInternal(bLastBuildSuccess); // 修复：调用内部方法而不是事件处理器
 			});
 		}
 
-		private void OnBuildFinished(bool bBuildSucess)
+		/// <summary>
+		/// 构建完成处理（内部方法，避免与事件处理器冲突）
+		/// </summary>
+		private void OnBuildFinishedInternal(bool bBuildSucess)
 		{
 			ZipStatusLabel.Content = "Idle";
 			bIsBuilding = false;
@@ -1099,6 +1380,24 @@ namespace UnrealBinaryBuilder
 
 		private string SetupBatCommandLineArgs()
 		{
+			// 使用新的命令行构建器
+			try
+			{
+				return CommandLineBuilder.BuildSetupCommandLine(SettingsJSON);
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "构建 Setup.bat 命令行时发生错误");
+				// 回退到旧方法
+				return SetupBatCommandLineArgsLegacy();
+			}
+		}
+
+		/// <summary>
+		/// 旧版 Setup.bat 命令行构建方法（作为回退）
+		/// </summary>
+		private string SetupBatCommandLineArgsLegacy()
+		{
 			string CommandLines = "--force";
 
 			if (SettingsJSON.GitDependencyAll)
@@ -1133,28 +1432,48 @@ namespace UnrealBinaryBuilder
 				CommandLines += $" --proxy={SettingsJSON.GitDependencyProxy}";
 			}
 
-
 			return CommandLines;
 		}
 
 		private void StartSetupBatFile_Click(object sender, System.Windows.RoutedEventArgs e)
 		{
-			bool bRequiredFilesExist = File.Exists(Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.SetupBatFileName)) && File.Exists(Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.GenerateProjectBatFileName));
-			if (bRequiredFilesExist == false)
+			// 使用新的服务优化启动逻辑
+			try
 			{
-				HandyControl.Controls.MessageBox.Error($"This is not the Unreal Engine root folder.\n\nPlease select the root folder where {UnrealBinaryBuilderHelpers.SetupBatFileName} and {UnrealBinaryBuilderHelpers.GenerateProjectBatFileName} exists.", "Incorrect folder");
-				return;
-			}
+				if (string.IsNullOrWhiteSpace(SetupBatFilePath.Text))
+				{
+					Logger.LogError("引擎路径不能为空");
+					NotificationService.ShowError("引擎路径不能为空");
+					return;
+				}
 
-			if (!bIsBuilding)
-			{
+				string setupBatPath = Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.SetupBatFileName);
+				string generateProjectBatPath = Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.GenerateProjectBatFileName);
+				bool bRequiredFilesExist = File.Exists(setupBatPath) && File.Exists(generateProjectBatPath);
+				
+				if (bRequiredFilesExist == false)
+				{
+					string errorMsg = $"This is not the Unreal Engine root folder.\n\nPlease select the root folder where {UnrealBinaryBuilderHelpers.SetupBatFileName} and {UnrealBinaryBuilderHelpers.GenerateProjectBatFileName} exists.";
+					Logger.LogError(errorMsg);
+					HandyControl.Controls.MessageBox.Error(errorMsg, "Incorrect folder");
+					return;
+				}
+
+				if (BuildManager.IsBuilding || bIsBuilding)
+				{
+					Logger.LogWarning("构建已在进行中，无法启动新的任务");
+					NotificationService.ShowWarning("构建已在进行中，无法启动新的任务");
+					return;
+				}
+
 				if (bBuildSetupBatFile.IsChecked == true)
 				{
 					bIsBuilding = true;
+					_viewModel.IsBuilding = true;
 					string Commandline = SetupBatCommandLineArgs();
 					ProcessStartInfo processStartInfo = new ProcessStartInfo
 					{
-						FileName = Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.SetupBatFileName),
+						FileName = setupBatPath,
 						Arguments = Commandline,
 						UseShellExecute = false,
 						CreateNoWindow = true,
@@ -1163,6 +1482,7 @@ namespace UnrealBinaryBuilder
 					};
 
 					currentProcessType = CurrentProcessType.SetupBat;
+					Logger.LogInfo($"开始执行 Setup.bat，命令行: {Commandline}");
 					CreateProcess(processStartInfo);
 					AddLogEntry($"Commandline: {Commandline}");
 					ChangeStatusLabel("Building...");
@@ -1181,9 +1501,80 @@ namespace UnrealBinaryBuilder
 					BuildEngine();
 				}
 			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "启动构建任务时发生错误");
+				ErrorHandler.HandleError(ex, "启动构建任务失败");
+				bIsBuilding = false;
+				_viewModel.IsBuilding = false;
+			}
 		}
 
 		private void CreateProcess(ProcessStartInfo processStartInfo, bool bClearLogs = true)
+		{
+			// 使用新的进程管理器
+			try
+			{
+				if (!File.Exists(processStartInfo.FileName))
+				{
+					string errorMessage = $"File does not exist: {processStartInfo.FileName}";
+					AddLogEntry(errorMessage, true);
+					Logger.LogError(errorMessage);
+					NotificationService.ShowError($"File does not exist: {Path.GetFileName(processStartInfo.FileName)}");
+					return;
+				}
+
+				StartSetupBatFile.IsEnabled = false;
+				DispatchTimer.Start();
+				StopwatchTimer.Start();
+
+				CompiledFiles = CompiledFilesTotal = 0;
+				_viewModel.CompiledFiles = 0;
+				_viewModel.CompiledFilesTotal = 0;
+				ProcessedFilesLabel.Text = "[Compiled: 0. Total: 0]";
+
+				if (bClearLogs)
+				{
+					LogControl.ClearAllLogs();
+					string version = UnrealBinaryBuilderHelpers.GetProductVersionString();
+					string welcomeMessage = Services.ResourceHelper.GetString("WelcomeMessage", version);
+					if (string.IsNullOrEmpty(welcomeMessage))
+					{
+						welcomeMessage = $"Welcome to Unreal Binary Builder v{version}";
+					}
+					AddLogEntry(welcomeMessage);
+				}
+
+				AddLogEntry($"========================== RUNNING - {Path.GetFileName(processStartInfo.FileName)} ==========================");
+				Logger.LogInfo($"启动进程: {processStartInfo.FileName}");
+
+				// 使用新的进程管理器
+				bool started = ProcessManager.StartProcess(processStartInfo);
+				if (started)
+				{
+					// 保持 CurrentProcess 引用以便向后兼容
+					CurrentProcess = ProcessManager.CurrentProcess;
+				}
+				else
+				{
+					Logger.LogError("启动进程失败");
+					StartSetupBatFile.IsEnabled = true;
+					DispatchTimer.Stop();
+					StopwatchTimer.Stop();
+				}
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "创建进程时发生错误");
+				// 回退到旧方法
+				CreateProcessLegacy(processStartInfo, bClearLogs);
+			}
+		}
+
+		/// <summary>
+		/// 旧版进程创建方法（作为回退）
+		/// </summary>
+		private void CreateProcessLegacy(ProcessStartInfo processStartInfo, bool bClearLogs = true)
 		{
 			if (!File.Exists(processStartInfo.FileName))
 			{
@@ -1220,34 +1611,54 @@ namespace UnrealBinaryBuilder
 
 		private void CloseCurrentProcess(bool bKillProcess = false)
 		{
-			if (CurrentProcess == null)
-			{
-				return;
-			}
-
+			// 使用新的进程管理器
 			try
 			{
-				if (bKillProcess)
+				if (ProcessManager.IsProcessRunning)
 				{
-					CurrentProcess.Kill(true);
-				}
-				else
-				{
-					if (!CurrentProcess.HasExited)
-					{
-						CurrentProcess.Close();
-					}
+					ProcessManager.CloseProcess(bKillProcess);
+					Logger.LogInfo(bKillProcess ? "进程已被强制终止" : "进程已关闭");
 				}
 			}
-			finally
+			catch (Exception ex)
 			{
-				CurrentProcess?.Dispose();
-				CurrentProcess = null;
+				Logger.LogException(ex, "关闭进程时发生错误");
+			}
+
+			// 同时处理旧的 CurrentProcess（向后兼容）
+			if (CurrentProcess != null)
+			{
+				try
+				{
+					if (bKillProcess)
+					{
+						CurrentProcess.Kill(true);
+					}
+					else
+					{
+						if (!CurrentProcess.HasExited)
+						{
+							CurrentProcess.Close();
+						}
+					}
+				}
+				finally
+				{
+					CurrentProcess?.Dispose();
+					CurrentProcess = null;
+				}
 			}
 		}
 
 		private string GetCurrentProcessName()
 		{
+			// 优先使用新的进程管理器
+			if (ProcessManager.IsProcessRunning)
+			{
+				return ProcessManager.GetCurrentProcessName();
+			}
+
+			// 回退到旧方法
 			if (CurrentProcess != null)
 			{
 				return CurrentProcess.ProcessName;
@@ -1265,7 +1676,7 @@ namespace UnrealBinaryBuilder
 		private void UpdateSkin(SkinType skin)
 		{
 			SharedResourceDictionary.SharedDictionaries.Clear();
-			Resources.MergedDictionaries.Add(ResourceHelper.GetSkin(skin));
+			Resources.MergedDictionaries.Add(HandyControl.Tools.ResourceHelper.GetSkin(skin));
 			Resources.MergedDictionaries.Add(new ResourceDictionary
 			{
 				Source = new Uri("pack://application:,,,/HandyControl;component/Themes/Theme.xaml")
@@ -1300,6 +1711,46 @@ namespace UnrealBinaryBuilder
 
 		private string PrepareCommandline()
 		{
+			// 使用新的命令行构建器
+			try
+			{
+				string buildXmlFile = CustomBuildXMLFile.Text;
+				if (string.IsNullOrEmpty(buildXmlFile))
+				{
+					buildXmlFile = UnrealBinaryBuilderHelpers.DEFAULT_BUILD_XML_FILE;
+				}
+
+				if (GameConfigurations.Text == "")
+				{
+					GameConfigurations.Text = "Development;Shipping";
+					GameAnalyticsCSharp.AddDesignEvent("CommandLine:GameConfiguration:Reset");
+				}
+
+				string commandLine = CommandLineBuilder.BuildEngineCommandLine(
+					SettingsJSON,
+					buildXmlFile,
+					GameConfigurations.Text,
+					CustomOptions.Text,
+					AnalyticsOverride.Text,
+					SetupBatFilePath.Text
+				);
+
+				Logger.LogDebug($"构建的命令行: {commandLine}");
+				return commandLine;
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "构建命令行时发生错误");
+				// 回退到旧方法
+				return PrepareCommandlineLegacy();
+			}
+		}
+
+		/// <summary>
+		/// 旧版命令行构建方法（作为回退）
+		/// </summary>
+		private string PrepareCommandlineLegacy()
+		{
 			string BuildXMLFile = CustomBuildXMLFile.Text;
 			if (CustomBuildXMLFile.Text == "")
 			{
@@ -1318,14 +1769,14 @@ namespace UnrealBinaryBuilder
 			}
 
 			string CommandLineArgs = string.Format("BuildGraph -target=\"Make Installed Build Win64\" -script={0} -set:WithDDC={1} -set:SignExecutables={2} -set:EmbedSrcSrvInfo={3} -set:GameConfigurations={4} -set:WithFullDebugInfo={5} -set:HostPlatformEditorOnly={6} -set:AnalyticsTypeOverride={7}",
-					BuildXMLFile,
-					GetConditionalString(bWithDDC.IsChecked),
-					GetConditionalString(bSignExecutables.IsChecked),
-					GetConditionalString(bEnableSymStore.IsChecked),
-					GameConfigurations.Text,
-					GetConditionalString(bWithFullDebugInfo.IsChecked),
-					GetConditionalString(bHostPlatformEditorOnly.IsChecked),
-					AnalyticsOverride.Text);
+				BuildXMLFile,
+				GetConditionalString(bWithDDC.IsChecked),
+				GetConditionalString(bSignExecutables.IsChecked),
+				GetConditionalString(bEnableSymStore.IsChecked),
+				GameConfigurations.Text,
+				GetConditionalString(bWithFullDebugInfo.IsChecked),
+				GetConditionalString(bHostPlatformEditorOnly.IsChecked),
+				AnalyticsOverride.Text);
 
 			if (bWithDDC.IsChecked == true && bHostPlatformDDCOnly.IsChecked == true)
 			{
@@ -1410,9 +1861,10 @@ namespace UnrealBinaryBuilder
 			BuildEngine();
 		}
 
-		private void BuildEngine()
+		private async void BuildEngine()
 		{
-			if (bIsBuilding)
+			// 使用新的构建管理器
+			if (BuildManager.IsBuilding || bIsBuilding)
 			{
 				MessageBoxResult MessageResult;
 				switch (currentProcessType)
@@ -1424,6 +1876,7 @@ namespace UnrealBinaryBuilder
 						{
 							case MessageBoxResult.Yes:
 								GameAnalyticsCSharp.AddDesignEvent($"Build:{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}:Killed");
+								BuildManager.StopBuild();
 								CloseCurrentProcess(true);
 								break;
 							case MessageBoxResult.No:
@@ -1435,6 +1888,7 @@ namespace UnrealBinaryBuilder
 						if (MessageResult == MessageBoxResult.Yes)
 						{
 							GameAnalyticsCSharp.AddDesignEvent($"Build:{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}:UnrealEngine:Killed");
+							BuildManager.StopBuild();
 							CloseCurrentProcess(true);
 						}
 						return;
@@ -1468,7 +1922,7 @@ namespace UnrealBinaryBuilder
 						// We don't want the system to shutdown since user is interacting.
 						bool? bOriginalShutdownState = bShutdownWindows.IsChecked;
 						bShutdownWindows.IsChecked = false;
-						OnBuildFinished(true);
+						OnBuildFinishedInternal(true);
 						bShutdownWindows.IsChecked = bOriginalShutdownState;
 						return;
 					case MessageBoxResult.Cancel:
@@ -1557,28 +2011,52 @@ namespace UnrealBinaryBuilder
 			GameAnalyticsCSharp.AddDesignEvent($"Build:Engine:{GetEngineName()}");
 			BuildRocketUE.Content = "Stop Build";
 			BuildRocketUE.IsEnabled = true;
+
+			// 使用新的命令行构建器
 			string CommandLineArgs = PrepareCommandline();
 
-			ProcessStartInfo AutomationStartInfo = new ProcessStartInfo
+			// 使用新的构建管理器
+			try
 			{
-				FileName = AutomationExePath,
-				Arguments = CommandLineArgs,
-				UseShellExecute = false,
-				CreateNoWindow = true,
-				RedirectStandardError = true,
-				RedirectStandardOutput = true
-			};
+				// 开始性能监控
+				using (PerformanceMonitor.StartOperation("BuildEngine"))
+				{
+					_viewModel.IsBuilding = true;
+					_viewModel.ResetCounters();
+					bIsBuilding = true;
 
-			CreateProcess(AutomationStartInfo);
+					bool success = await BuildManager.BuildEngineAsync(AutomationExePath, CommandLineArgs);
+					if (success)
+					{
+						ChangeStatusLabel("Building...");
+						_viewModel.StatusText = Services.ResourceHelper.GetString("StatusBuilding", "Building...");
+						ZipStatusLabel.Content = "Waiting for Engine to finish building...";
+						GameAnalyticsCSharp.AddDesignEvent("Build:Started");
+						Logger.LogInfo(Services.ResourceHelper.GetString("MessageBuildStarted", "Build started"));
 
-			bIsBuilding = true;
-			ChangeStatusLabel("Building...");
-			ZipStatusLabel.Content = "Waiting for Engine to finish building...";
-			GameAnalyticsCSharp.AddDesignEvent("Build:Started");
-
-			if (Git.CommitHashShort != null)
+						if (Git.CommitHashShort != null)
+						{
+							AddLogEntry($"Building commit {Git.CommitHashShort}");
+						}
+					}
+					else
+					{
+						Logger.LogError("启动构建失败");
+						bIsBuilding = false;
+						_viewModel.IsBuilding = false;
+						BuildRocketUE.Content = "Build Unreal Engine";
+						NotificationService.ShowError("启动构建失败");
+					}
+				}
+			}
+			catch (Exception ex)
 			{
-				AddLogEntry($"Building commit {Git.CommitHashShort}");
+				Logger.LogException(ex, "构建引擎时发生错误");
+				ErrorHandler.HandleError(ex, "构建引擎失败");
+				bIsBuilding = false;
+				_viewModel.IsBuilding = false;
+				BuildRocketUE.Content = "Build Unreal Engine";
+				NotificationService.ShowError("构建引擎时发生错误");
 			}
 		}
 
@@ -1725,11 +2203,36 @@ namespace UnrealBinaryBuilder
 
 		private string GetEngineName()
 		{
-			return UnrealBinaryBuilderHelpers.DetectEngineVersion(SetupBatFilePath.Text);
+			// 使用新的版本检测器
+			try
+			{
+				return VersionDetector.DetectEngineVersion(SetupBatFilePath.Text) ?? 
+				       UnrealBinaryBuilderHelpers.DetectEngineVersion(SetupBatFilePath.Text);
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "检测引擎版本时发生错误");
+				return UnrealBinaryBuilderHelpers.DetectEngineVersion(SetupBatFilePath.Text);
+			}
 		}
 
 		private double GetEngineValue()
 		{
+			// 使用新的版本检测器
+			try
+			{
+				double value = VersionDetector.GetEngineVersionValue(SetupBatFilePath.Text);
+				if (value > 0)
+				{
+					return value;
+				}
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "获取引擎版本值时发生错误");
+			}
+
+			// 回退到旧方法
 			string MyEngineName = GetEngineName();
 			if (MyEngineName != null)
 			{
@@ -1811,158 +2314,241 @@ namespace UnrealBinaryBuilder
 
 		private void GenerateProjectFiles()
 		{
-			if (bIsBuilding)
+			// 使用新的服务进行项目文件生成
+			try
 			{
-				return;
-			}
-
-			bIsBuilding = true;
-			BuildRocketUE.IsEnabled = false;
-			ProcessStartInfo processStartInfo = new ProcessStartInfo
-			{
-				FileName = Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.GenerateProjectBatFileName),
-				UseShellExecute = false,
-				CreateNoWindow = true,
-				RedirectStandardError = true,
-				RedirectStandardOutput = true
-			};
-
-			currentProcessType = CurrentProcessType.GenerateProjectFiles;
-			CreateProcess(processStartInfo, false);
-			ChangeStatusLabel("Building...");
-			GameAnalyticsCSharp.AddProgressStart("Build", "ProjectFiles");
-		}
-
-		private bool? BuildAutomationTool()
-		{
-			if (!UnrealBinaryBuilderHelpers.IsUnrealEngine5)
-			{
-				return BuildAutomationToolLauncher();
-			}
-
-			if (bIsBuilding)
-			{
-				return false;
-			}
-
-			if (string.IsNullOrEmpty(AutomationExePath))
-			{
-				if (!TryUpdateAutomationExePath())
+				if (BuildManager.IsBuilding || bIsBuilding)
 				{
-					AddLogEntry($"Failed to build {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}. AutomationExePath was null.", true);
-					return null;
+					Logger.LogWarning("项目文件生成已在进行中，无法启动新的任务");
+					return;
 				}
-			}
 
-			bIsBuilding = true;
-			BuildRocketUE.IsEnabled = false;
-			currentProcessType = CurrentProcessType.BuildAutomationTool;
-			if (UnrealBinaryBuilderHelpers.AutomationToolExists(SetupBatFilePath.Text))
-			{
-				AddLogEntry($"Skip building {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}. Already exists.");
-				OnBuildFinished(true);
-				return false;
-			}
+				if (string.IsNullOrWhiteSpace(SetupBatFilePath.Text))
+				{
+					Logger.LogError("引擎路径不能为空");
+					NotificationService.ShowError("引擎路径不能为空");
+					return;
+				}
 
-			string MsBuildFile = UnrealBinaryBuilderHelpers.GetMsBuildPath();
-			if (File.Exists(MsBuildFile))
-			{
+				string generateProjectBatPath = Path.Combine(SetupBatFilePath.Text, UnrealBinaryBuilderHelpers.GenerateProjectBatFileName);
+				if (!File.Exists(generateProjectBatPath))
+				{
+					Logger.LogError($"文件不存在: {generateProjectBatPath}");
+					NotificationService.ShowError($"文件不存在: {generateProjectBatPath}");
+					return;
+				}
+
+				bIsBuilding = true;
+				_viewModel.IsBuilding = true;
+				BuildRocketUE.IsEnabled = false;
 				ProcessStartInfo processStartInfo = new ProcessStartInfo
 				{
-					FileName = MsBuildFile,
-					Arguments = $"/restore /verbosity:minimal {UnrealBinaryBuilderHelpers.GetAutomationToolProjectFile(SetupBatFilePath.Text)}",
+					FileName = generateProjectBatPath,
 					UseShellExecute = false,
 					CreateNoWindow = true,
 					RedirectStandardError = true,
 					RedirectStandardOutput = true
 				};
 
+				currentProcessType = CurrentProcessType.GenerateProjectFiles;
+				Logger.LogInfo($"开始生成项目文件: {generateProjectBatPath}");
 				CreateProcess(processStartInfo, false);
 				ChangeStatusLabel("Building...");
-				GameAnalyticsCSharp.AddProgressStart("Build", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME);
-				return true;
+				GameAnalyticsCSharp.AddProgressStart("Build", "ProjectFiles");
 			}
-			else
+			catch (Exception ex)
 			{
-				AddLogEntry($"Unable to build {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}. MsBuild not found in {MsBuildFile}", true);
+				Logger.LogException(ex, "生成项目文件时发生错误");
+				ErrorHandler.HandleError(ex, "生成项目文件失败");
+				bIsBuilding = false;
+				_viewModel.IsBuilding = false;
 			}
-
-			return false;
 		}
-		private bool? BuildAutomationToolLauncher()
+
+		private bool? BuildAutomationTool()
 		{
-			if (bIsBuilding)
+			// 使用新的服务构建 AutomationTool
+			try
 			{
-				return null;
-			}
-
-			if (string.IsNullOrEmpty(AutomationExePath))
-			{
-				if (!TryUpdateAutomationExePath())
+				if (!UnrealBinaryBuilderHelpers.IsUnrealEngine5)
 				{
-					AddLogEntry($"Failed to build {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}. AutomationExePath was null.", true);
-					return null;
+					return BuildAutomationToolLauncher();
 				}
-			}
 
-			bIsBuilding = true;
-			BuildRocketUE.IsEnabled = false;
-			currentProcessType = CurrentProcessType.BuildAutomationToolLauncher;
-			if (File.Exists(AutomationExePath))
-			{
-				AddLogEntry($"Skip building {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}. Already exists.");
-				OnBuildFinished(true);
-				return false;
-			}
+				if (BuildManager.IsBuilding || bIsBuilding)
+				{
+					Logger.LogWarning("构建已在进行中，无法启动新的构建");
+					return false;
+				}
 
-			if (UnrealBinaryBuilderHelpers.IsUnrealEngine5)
-			{
+				if (string.IsNullOrEmpty(AutomationExePath))
+				{
+					if (!TryUpdateAutomationExePath())
+					{
+						string errorMsg = $"Failed to build {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}. AutomationExePath was null.";
+						Logger.LogError(errorMsg);
+						AddLogEntry(errorMsg, true);
+						NotificationService.ShowError(errorMsg);
+						return null;
+					}
+				}
+
+				bIsBuilding = true;
+				_viewModel.IsBuilding = true;
+				BuildRocketUE.IsEnabled = false;
+				currentProcessType = CurrentProcessType.BuildAutomationTool;
+				if (UnrealBinaryBuilderHelpers.AutomationToolExists(SetupBatFilePath.Text))
+				{
+					string skipMsg = $"Skip building {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}. Already exists.";
+					Logger.LogInfo(skipMsg);
+					AddLogEntry(skipMsg);
+					OnBuildFinishedInternal(true);
+					return false;
+				}
+
 				string MsBuildFile = UnrealBinaryBuilderHelpers.GetMsBuildPath();
 				if (File.Exists(MsBuildFile))
 				{
 					ProcessStartInfo processStartInfo = new ProcessStartInfo
 					{
 						FileName = MsBuildFile,
-						Arguments = UnrealBinaryBuilderHelpers.GetAutomationToolLauncherProjectFile(SetupBatFilePath.Text),
+						Arguments = $"/restore /verbosity:minimal {UnrealBinaryBuilderHelpers.GetAutomationToolProjectFile(SetupBatFilePath.Text)}",
 						UseShellExecute = false,
 						CreateNoWindow = true,
 						RedirectStandardError = true,
 						RedirectStandardOutput = true
 					};
 
+					Logger.LogInfo($"开始构建 {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}: {MsBuildFile}");
 					CreateProcess(processStartInfo, false);
 					ChangeStatusLabel("Building...");
-					GameAnalyticsCSharp.AddProgressStart("Build", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME);
+					GameAnalyticsCSharp.AddProgressStart("Build", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME);
 					return true;
 				}
 				else
 				{
-					AddLogEntry($"Unable to build {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}. MsBuild not found in {MsBuildFile}", true);
+					string errorMsg = $"Unable to build {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}. MsBuild not found in {MsBuildFile}";
+					Logger.LogError(errorMsg);
+					AddLogEntry(errorMsg, true);
+					NotificationService.ShowError(errorMsg);
 				}
+
+				return false;
 			}
-			else
+			catch (Exception ex)
 			{
-				string RunUATFile = Path.Combine(SetupBatFilePath.Text, "Engine", "Build", "BatchFiles", "RunUAT.bat");
-				if (File.Exists(RunUATFile))
-				{
-					ProcessStartInfo processStartInfo = new ProcessStartInfo
-					{
-						FileName = RunUATFile,
-						Arguments = "-compileonly",
-						UseShellExecute = false,
-						CreateNoWindow = true,
-						RedirectStandardError = true,
-						RedirectStandardOutput = true
-					};
-
-					CreateProcess(processStartInfo, false);
-					ChangeStatusLabel("Building...");
-					GameAnalyticsCSharp.AddProgressStart("Build", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME);
-					return true;
-				}
+				Logger.LogException(ex, $"构建 {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME} 时发生错误");
+				ErrorHandler.HandleError(ex, $"构建 {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME} 失败");
+				bIsBuilding = false;
+				_viewModel.IsBuilding = false;
+				return false;
 			}
+		}
+		private bool? BuildAutomationToolLauncher()
+		{
+			// 使用新的服务构建 AutomationToolLauncher
+			try
+			{
+				if (BuildManager.IsBuilding || bIsBuilding)
+				{
+					Logger.LogWarning("构建已在进行中，无法启动新的构建");
+					return null;
+				}
 
-			return null;
+				if (string.IsNullOrEmpty(AutomationExePath))
+				{
+					if (!TryUpdateAutomationExePath())
+					{
+						string errorMsg = $"Failed to build {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}. AutomationExePath was null.";
+						Logger.LogError(errorMsg);
+						AddLogEntry(errorMsg, true);
+						NotificationService.ShowError(errorMsg);
+						return null;
+					}
+				}
+
+				bIsBuilding = true;
+				_viewModel.IsBuilding = true;
+				BuildRocketUE.IsEnabled = false;
+				currentProcessType = CurrentProcessType.BuildAutomationToolLauncher;
+				if (File.Exists(AutomationExePath))
+				{
+					string skipMsg = $"Skip building {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}. Already exists.";
+					Logger.LogInfo(skipMsg);
+					AddLogEntry(skipMsg);
+					OnBuildFinishedInternal(true);
+					return false;
+				}
+
+				if (UnrealBinaryBuilderHelpers.IsUnrealEngine5)
+				{
+					string MsBuildFile = UnrealBinaryBuilderHelpers.GetMsBuildPath();
+					if (File.Exists(MsBuildFile))
+					{
+						ProcessStartInfo processStartInfo = new ProcessStartInfo
+						{
+							FileName = MsBuildFile,
+							Arguments = UnrealBinaryBuilderHelpers.GetAutomationToolLauncherProjectFile(SetupBatFilePath.Text),
+							UseShellExecute = false,
+							CreateNoWindow = true,
+							RedirectStandardError = true,
+							RedirectStandardOutput = true
+						};
+
+						Logger.LogInfo($"开始构建 {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}: {MsBuildFile}");
+						CreateProcess(processStartInfo, false);
+						ChangeStatusLabel("Building...");
+						GameAnalyticsCSharp.AddProgressStart("Build", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME);
+						return true;
+					}
+					else
+					{
+						string errorMsg = $"Unable to build {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}. MsBuild not found in {MsBuildFile}";
+						Logger.LogError(errorMsg);
+						AddLogEntry(errorMsg, true);
+						NotificationService.ShowError(errorMsg);
+					}
+				}
+				else
+				{
+					string RunUATFile = Path.Combine(SetupBatFilePath.Text, "Engine", "Build", "BatchFiles", "RunUAT.bat");
+					if (File.Exists(RunUATFile))
+					{
+						ProcessStartInfo processStartInfo = new ProcessStartInfo
+						{
+							FileName = RunUATFile,
+							Arguments = "-compileonly",
+							UseShellExecute = false,
+							CreateNoWindow = true,
+							RedirectStandardError = true,
+							RedirectStandardOutput = true
+						};
+
+						Logger.LogInfo($"开始构建 {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}: {RunUATFile}");
+						CreateProcess(processStartInfo, false);
+						ChangeStatusLabel("Building...");
+						GameAnalyticsCSharp.AddProgressStart("Build", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME);
+						return true;
+					}
+					else
+					{
+						string errorMsg = $"RunUAT.bat 文件不存在: {RunUATFile}";
+						Logger.LogError(errorMsg);
+						AddLogEntry(errorMsg, true);
+						NotificationService.ShowError(errorMsg);
+					}
+				}
+
+				return null;
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, $"构建 {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME} 时发生错误");
+				ErrorHandler.HandleError(ex, $"构建 {UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME} 失败");
+				bIsBuilding = false;
+				_viewModel.IsBuilding = false;
+				return null;
+			}
 		}
 
 		private string GetSelectedPluginCompilerArgument()
@@ -1992,41 +2578,65 @@ namespace UnrealBinaryBuilder
 
 		private string BuildPlugin(PluginCard pluginCard)
 		{
-			if (bIsBuilding)
+			// 使用新的服务进行插件构建
+			try
 			{
-				return "Cannot build plugin while task is running";
+				// 开始性能监控
+				using (PerformanceMonitor.StartOperation("BuildPlugin"))
+				{
+					if (BuildManager.IsBuilding || bIsBuilding)
+					{
+						return "Cannot build plugin while task is running";
+					}
+
+					if (!pluginCard.IsValid())
+					{
+						return $"{pluginCard.PluginName.Text} ({pluginCard.EngineVersionText.Text}) is already compiled.";
+					}
+
+					CurrentPluginBeingBuilt = pluginCard;
+					bIsBuilding = true;
+					_viewModel.IsBuilding = true;
+					BuildRocketUE.IsEnabled = false;
+					StartPluginBuildsBtn.IsEnabled = false;
+					currentProcessType = CurrentProcessType.BuildPlugin;
+
+					string pluginName = Path.GetFileNameWithoutExtension(pluginCard.PluginPath);
+					Logger.LogInfo($"========================== BUILDING PLUGIN {pluginName.ToUpper()} ==========================");
+					Logger.LogInfo($"Plugin: {pluginCard.PluginPath}");
+					Logger.LogInfo($"Package Location: {pluginCard.DestinationPath}");
+					Logger.LogInfo($"Target Engine: {pluginCard.EngineVersionText.Text}");
+					AddLogEntry($"========================== BUILDING PLUGIN {pluginName.ToUpper()} ==========================");
+					AddLogEntry($"Plugin: {pluginCard.PluginPath}");
+					AddLogEntry($"Package Location: {pluginCard.DestinationPath}");
+					AddLogEntry($"Target Engine: {pluginCard.EngineVersionText.Text}");
+
+					ProcessStartInfo processStartInfo = new ProcessStartInfo
+					{
+						FileName = pluginCard.RunUATFile,
+						Arguments = $"BuildPlugin -Plugin=\"{pluginCard.PluginPath}\" -Package=\"{pluginCard.DestinationPath}\" -Rocket {pluginCard.GetCompiler()} {pluginCard.GetTargetPlatforms()}",
+						UseShellExecute = false,
+						CreateNoWindow = true,
+						RedirectStandardError = true,
+						RedirectStandardOutput = true
+					};
+
+					pluginCard.BuildStarted();
+					CreateProcess(processStartInfo, false);
+					ChangeStatusLabel($"Building Plugin - {pluginName}");
+					NotificationService.ShowInfo($"Building Plugin - {pluginName}");
+					GameAnalyticsCSharp.AddProgressStart("Build", "Plugin");
+					return null;
+				}
 			}
-
-			if (!pluginCard.IsValid())
+			catch (Exception ex)
 			{
-				return $"{pluginCard.PluginName.Text} ({pluginCard.EngineVersionText.Text}) is already compiled.";
+				Logger.LogException(ex, "构建插件时发生错误");
+				ErrorHandler.HandleError(ex, "构建插件失败");
+				bIsBuilding = false;
+				_viewModel.IsBuilding = false;
+				return $"构建插件时发生错误: {ex.Message}";
 			}
-
-			CurrentPluginBeingBuilt = pluginCard;
-			bIsBuilding = true;
-			BuildRocketUE.IsEnabled = false;
-			StartPluginBuildsBtn.IsEnabled = false;
-			currentProcessType = CurrentProcessType.BuildPlugin;
-			AddLogEntry($"========================== BUILDING PLUGIN {Path.GetFileNameWithoutExtension(pluginCard.PluginPath).ToUpper()} ==========================");
-			AddLogEntry($"Plugin: {pluginCard.PluginPath}");
-			AddLogEntry($"Package Location: {pluginCard.DestinationPath}");
-			AddLogEntry($"Target Engine: {pluginCard.EngineVersionText.Text}");
-			ProcessStartInfo processStartInfo = new ProcessStartInfo
-			{
-				FileName = pluginCard.RunUATFile,
-				Arguments = $"BuildPlugin -Plugin=\"{pluginCard.PluginPath}\" -Package=\"{pluginCard.DestinationPath}\" -Rocket {pluginCard.GetCompiler()} {pluginCard.GetTargetPlatforms()}",
-				UseShellExecute = false,
-				CreateNoWindow = true,
-				RedirectStandardError = true,
-				RedirectStandardOutput = true
-			};
-
-			pluginCard.BuildStarted();
-			CreateProcess(processStartInfo, false);
-			ChangeStatusLabel($"Building Plugin - {Path.GetFileNameWithoutExtension(pluginCard.PluginPath)}");
-			ShowToastMessage($"Building Plugin - {Path.GetFileNameWithoutExtension(pluginCard.PluginPath)}", LogViewer.EMessageType.Info, false, true, "PluginBuild");
-			GameAnalyticsCSharp.AddProgressStart("Build", "Plugin");
-			return null;
 		}
 
 		private void CancelZipping_Click(object sender, RoutedEventArgs e)
@@ -2326,7 +2936,22 @@ namespace UnrealBinaryBuilder
 				return;
 			}
 
-			string EngineVersion = UnrealBinaryBuilderHelpers.DetectEngineVersion(SetupBatFilePath.Text, true);
+			// 使用新的版本检测器
+			string EngineVersion = null;
+			try
+			{
+				EngineVersion = VersionDetector.DetectEngineVersion(SetupBatFilePath.Text, true);
+			}
+			catch (Exception ex)
+			{
+				Logger.LogException(ex, "检测引擎版本时发生错误");
+			}
+
+			if (string.IsNullOrEmpty(EngineVersion))
+			{
+				EngineVersion = UnrealBinaryBuilderHelpers.DetectEngineVersion(SetupBatFilePath.Text, true);
+			}
+
 			if (EngineVersion != null)
 			{
 				FoundEngineLabel.Content = Git.CommitHashShort != null 
@@ -2336,6 +2961,7 @@ namespace UnrealBinaryBuilder
 			else
 			{
 				FoundEngineLabel.Content = "Unable to detect Engine version.";
+				Logger.LogWarning("无法检测引擎版本");
 			}
 
 			AutomationExePath = null;
