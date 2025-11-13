@@ -1726,13 +1726,13 @@ namespace UnrealBinaryBuilder
 			string MyEngineName = GetEngineName();
 			if (MyEngineName != null)
 			{
-				int pos = MyEngineName.LastIndexOf(".");
-				if (pos > 0)
+				string[] parts = MyEngineName.Split('.');
+				if (parts.Length >= 2)
 				{
-					string sub = MyEngineName.Substring(pos).Replace(".", "");
-					string RemovedName = MyEngineName.Remove(pos);
-					double EngineValue = Convert.ToDouble(RemovedName.Insert(pos, sub));
-					return EngineValue;
+					if (double.TryParse($"{parts[0]}.{parts[1]}", out double result))
+					{
+						return result;
+					}
 				}
 			}
 
