@@ -391,7 +391,10 @@ namespace UnrealBinaryBuilder.Classes
 			{
 				File.Delete(PROGRAM_ERRORLOG_PATH);
 			}
-			catch (Exception) {}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Failed to delete error log file: {ex.Message}");
+			}
 
 			if (string.IsNullOrWhiteSpace(InContent) == false)
 			{

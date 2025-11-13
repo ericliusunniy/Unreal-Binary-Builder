@@ -58,9 +58,9 @@ namespace UnrealBinaryBuilder.Classes
 						}
 					}
 				}
-				catch (Exception)
+				catch (Exception ex)
 				{
-
+					System.Diagnostics.Debug.WriteLine($"Failed to check directory write access: {ex.Message}");
 				}
 			}
 
@@ -92,20 +92,13 @@ namespace UnrealBinaryBuilder.Classes
 
 				foreach (string file in files)
 				{
-					bool bSkipFile = false;
-					Application.Current.Dispatcher.Invoke(() =>
+					string CurrentFilePath = Path.GetFullPath(file).ToLower();
+					if (bZipForMarketplace && (CurrentFilePath.Contains(@"\binaries\") || CurrentFilePath.Contains(@"\intermediate\")))
 					{
-						string CurrentFilePath = Path.GetFullPath(file).ToLower();
-						if (bZipForMarketplace && (CurrentFilePath.Contains(@"\binaries\") || CurrentFilePath.Contains(@"\intermediate\")))
-						{
-							bSkipFile = true;
-						}
+						continue;
+					}
 
-						if (bSkipFile == false)
-						{
-							filesToAdd.Add(file);
-						}
-					});
+					filesToAdd.Add(file);
 				}
 				Application.Current.Dispatcher.Invoke(() =>
 				{
@@ -201,70 +194,50 @@ namespace UnrealBinaryBuilder.Classes
 				foreach (string file in files)
 				{
 					bool bSkipFile = false;
-					Application.Current.Dispatcher.Invoke(() =>
+					string CurrentFilePath = Path.GetFullPath(file).ToLower();
+					if (mainWindow.bIncludePDB.IsChecked == false && Path.GetExtension(file).ToLower() == ".pdb")
 					{
-						string CurrentFilePath = Path.GetFullPath(file).ToLower();
-						if (mainWindow.bIncludePDB.IsChecked == false && Path.GetExtension(file).ToLower() == ".pdb")
-						{
-							bSkipFile = true;
-						}
+						bSkipFile = true;
+					}
 
-						if (mainWindow.bIncludeDEBUG.IsChecked == false && Path.GetExtension(file).ToLower() == ".debug")
-						{
-							bSkipFile = true;
-						}
+					if (mainWindow.bIncludeDEBUG.IsChecked == false && Path.GetExtension(file).ToLower() == ".debug")
+					{
+						bSkipFile = true;
+					}
 
-						if (mainWindow.bIncludeDocumentation.IsChecked == false && CurrentFilePath.Contains(@"\source\") == false && CurrentFilePath.Contains(@"\documentation\"))
-						{
-							bSkipFile = true;
-						}
+					if (mainWindow.bIncludeDocumentation.IsChecked == false && !CurrentFilePath.Contains(@"\source\") && CurrentFilePath.Contains(@"\documentation\"))
+					{
+						bSkipFile = true;
+					}
 
-						if (mainWindow.bIncludeExtras.IsChecked == false && CurrentFilePath.Contains(@"\extras\redist\") == false && CurrentFilePath.Contains(@"\extras\"))
-						{
-							bSkipFile = true;
-						}
+					if (mainWindow.bIncludeExtras.IsChecked == false && !CurrentFilePath.Contains(@"\extras\redist\") && CurrentFilePath.Contains(@"\extras\"))
+					{
+						bSkipFile = true;
+					}
 
-						if (mainWindow.bIncludeSource.IsChecked == false && CurrentFilePath.Contains(@"\source\developer\"))
-						{
-							bSkipFile = true;
-						}
+					if (mainWindow.bIncludeSource.IsChecked == false && (CurrentFilePath.Contains(@"\source\developer\") ||
+					                                                    CurrentFilePath.Contains(@"\source\editor\") ||
+					                                                    CurrentFilePath.Contains(@"\source\programs\") ||
+					                                                    CurrentFilePath.Contains(@"\source\runtime\") ||
+					                                                    CurrentFilePath.Contains(@"\source\thirdparty\")))
+					{
+						bSkipFile = true;
+					}
 
-						if (mainWindow.bIncludeSource.IsChecked == false && CurrentFilePath.Contains(@"\source\editor\"))
-						{
-							bSkipFile = true;
-						}
+					if (mainWindow.bIncludeFeaturePacks.IsChecked == false && CurrentFilePath.Contains(@"\featurepacks\"))
+					{
+						bSkipFile = true;
+					}
 
-						if (mainWindow.bIncludeSource.IsChecked == false && CurrentFilePath.Contains(@"\source\programs\"))
-						{
-							bSkipFile = true;
-						}
+					if (mainWindow.bIncludeSamples.IsChecked == false && CurrentFilePath.Contains(@"\samples\"))
+					{
+						bSkipFile = true;
+					}
 
-						if (mainWindow.bIncludeSource.IsChecked == false && CurrentFilePath.Contains(@"\source\runtime\"))
-						{
-							bSkipFile = true;
-						}
-
-						if (mainWindow.bIncludeSource.IsChecked == false && CurrentFilePath.Contains(@"\source\thirdparty\"))
-						{
-							bSkipFile = true;
-						}
-
-						if (mainWindow.bIncludeFeaturePacks.IsChecked == false && CurrentFilePath.Contains(@"\featurepacks\"))
-						{
-							bSkipFile = true;
-						}
-
-						if (mainWindow.bIncludeSamples.IsChecked == false && CurrentFilePath.Contains(@"\samples\"))
-						{
-							bSkipFile = true;
-						}
-
-						if (mainWindow.bIncludeTemplates.IsChecked == false && CurrentFilePath.Contains(@"\source\") == false && CurrentFilePath.Contains(@"\content\editor") == false && CurrentFilePath.Contains(@"\templates\"))
-						{
-							bSkipFile = true;
-						}
-
-					});
+					if (mainWindow.bIncludeTemplates.IsChecked == false && !CurrentFilePath.Contains(@"\source\") && !CurrentFilePath.Contains(@"\content\editor") && CurrentFilePath.Contains(@"\templates\"))
+					{
+						bSkipFile = true;
+					}
 
 					TotalSize += new FileInfo(file).Length;
 					TotalSizeInString = BytesToString(TotalSize);
