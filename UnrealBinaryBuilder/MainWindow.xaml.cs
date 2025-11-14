@@ -1559,15 +1559,23 @@ namespace UnrealBinaryBuilder
 			StartSetupBatFile.IsEnabled = bRequiredFilesExist;
 			if (bRequiredFilesExist)
 			{
-				string resolvedAutomationExe = UnrealBinaryBuilderHelpers.GetAutomationToolExecutablePath(SetupBatFilePath.Text);
-				if (string.IsNullOrEmpty(resolvedAutomationExe))
+				// 对于 UE5，构建引擎时应该使用 AutomationTool.exe，而不是 AutomationToolLauncher.exe
+				// 即使文件还不存在（可能还没有构建），也应该设置正确的路径
+				if (UnrealBinaryBuilderHelpers.IsUnrealEngine5)
 				{
-					resolvedAutomationExe = UnrealBinaryBuilderHelpers.IsUnrealEngine5
-						? Path.Combine(SetupBatFilePath.Text, "Engine", "Binaries", "DotNET", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME, $"{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}.exe")
-						: Path.Combine(SetupBatFilePath.Text, "Engine", "Binaries", "DotNET", $"{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}.exe");
+					// UE5: 始终使用 AutomationTool.exe 的路径（即使文件还不存在，用于后续构建）
+					AutomationExePath = Path.Combine(SetupBatFilePath.Text, "Engine", "Binaries", "DotNET", UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME, $"{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}.exe");
 				}
-
-				AutomationExePath = resolvedAutomationExe;
+				else
+				{
+					// UE4: 使用 AutomationToolLauncher.exe
+					string resolvedAutomationExe = UnrealBinaryBuilderHelpers.GetAutomationToolExecutablePath(SetupBatFilePath.Text);
+					if (string.IsNullOrEmpty(resolvedAutomationExe))
+					{
+						resolvedAutomationExe = Path.Combine(SetupBatFilePath.Text, "Engine", "Binaries", "DotNET", $"{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_LAUNCHER_NAME}.exe");
+					}
+					AutomationExePath = resolvedAutomationExe;
+				}
 			}
 			else
 			{
