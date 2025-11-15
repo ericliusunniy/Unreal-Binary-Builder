@@ -1508,6 +1508,7 @@ namespace UnrealBinaryBuilder
 							postBuildSettings.PrepareToSave();
 							postBuildSettings.SaveToZip(FinalBuildPath, ZipPath.Text);
 							AddLogEntry($"Saving zip file to {ZipPath.Text}");
+							BuildRocketUE.Content = "Build Unreal Engine";
 							WriteToLogFile();
 							return;
 						}
@@ -1554,6 +1555,11 @@ namespace UnrealBinaryBuilder
 					Growl.Clear("PluginBuild");
 					ShowToastMessage($"Finished plugin queue build with {PluginQueues.Children.Count} plugin(s)");
 				}
+			}
+
+			if (currentProcessType == CurrentProcessType.BuildUnrealEngine)
+			{
+				BuildRocketUE.Content = "Build Unreal Engine";
 			}
 
 			if (currentProcessType == CurrentProcessType.BuildProject)
@@ -2181,6 +2187,9 @@ namespace UnrealBinaryBuilder
 							GameAnalyticsCSharp.AddDesignEvent($"Build:{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}:UnrealEngine:Killed");
 							BuildManager.StopBuild();
 							CloseCurrentProcess(true);
+							BuildRocketUE.Content = "Build Unreal Engine";
+							bIsBuilding = false;
+							_viewModel.IsBuilding = false;
 						}
 						return;
 				}
