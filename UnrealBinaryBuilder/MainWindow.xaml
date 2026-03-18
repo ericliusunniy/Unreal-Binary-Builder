@@ -1,4 +1,4 @@
-﻿<hc:GlowWindow
+<hc:GlowWindow
 				xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 				xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 				xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -299,11 +299,13 @@
 										<Grid.ColumnDefinitions>
 											<ColumnDefinition Width="*"/>
 											<ColumnDefinition Width="*"/>
+											<ColumnDefinition Width="*"/>
 											<ColumnDefinition Width="Auto"/>
 										</Grid.ColumnDefinitions>
 										<CheckBox x:Name="bUse2019Compiler" Content="Use 2019 Compiler" HorizontalAlignment="Left" Checked="PluginCompiler_Checked" Unchecked="PluginCompiler_Checked" Grid.Column="0"/>
 										<CheckBox x:Name="bUse2022Compiler" Content="Use 2022 Compiler" HorizontalAlignment="Left" Margin="10,0,0,0" Checked="PluginCompiler_Checked" Unchecked="PluginCompiler_Checked" Grid.Column="1"/>
-										<Button x:Name="PluginQueueBtn" Content="Queue Build" Style="{StaticResource ButtonDashedPrimary}" HorizontalAlignment="Right" Grid.Column="2" Click="PluginQueueBtn_Click"/>
+										<CheckBox x:Name="bUse2026Compiler" Content="Use 2026 Compiler" HorizontalAlignment="Left" Margin="10,0,0,0" Checked="PluginCompiler_Checked" Unchecked="PluginCompiler_Checked" Grid.Column="2"/>
+										<Button x:Name="PluginQueueBtn" Content="Queue Build" Style="{StaticResource ButtonDashedPrimary}" HorizontalAlignment="Right" Grid.Column="3" Click="PluginQueueBtn_Click"/>
 									</Grid>
 
 									<StackPanel Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Top" Width="400">

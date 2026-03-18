@@ -200,14 +200,20 @@ namespace UnrealBinaryBuilder.Services
 
 		private void AppendVisualStudioOptions(StringBuilder commandLine, BuilderSettingsJson settings, double engineValue)
 		{
-			// Check Visual Studio availability, simplified handling
-			bool useVS2022 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase);
-			bool useVS2019 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase) && !useVS2022;
+			bool useVS2026 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2026, StringComparison.OrdinalIgnoreCase);
+			bool useVS2022 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase) && !useVS2026;
+			bool useVS2019 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase) && !useVS2026 && !useVS2022;
 
-			if (!useVS2022 && !useVS2019)
+			if (!useVS2026 && !useVS2022 && !useVS2019)
 			{
-				useVS2022 = settings.bVS2022;
-				useVS2019 = settings.bVS2019 && !useVS2022;
+				useVS2026 = settings.bVS2026;
+				useVS2022 = settings.bVS2022 && !useVS2026;
+				useVS2019 = settings.bVS2019 && !useVS2026 && !useVS2022;
+			}
+
+			if (engineValue >= 5.5)
+			{
+				commandLine.Append($" -set:VS2026={GetConditionalString(useVS2026)}");
 			}
 
 			if (engineValue >= 4.27)

@@ -1,4 +1,4 @@
-﻿
+
 using HandyControl.Controls;
 using HandyControl.Data;
 using HandyControl.Themes;
@@ -35,6 +35,7 @@ namespace UnrealBinaryBuilder
 		public const string VisualStudioVersion2017 = "VS2017";
 		public const string VisualStudioVersion2019 = "VS2019";
 		public const string VisualStudioVersion2022 = "VS2022";
+		public const string VisualStudioVersion2026 = "VS2026";
 		public static bool IsUnrealEngine5 { get; private set; } = false;
 
 		/// <summary>
@@ -70,6 +71,7 @@ namespace UnrealBinaryBuilder
 		public static bool VisualStudio2017Available { get; private set; } = false;
 		public static bool VisualStudio2019Available { get; private set; } = false;
 		public static bool VisualStudio2022Available { get; private set; } = false;
+		public static bool VisualStudio2026Available { get; private set; } = false;
 		public static int LatestVisualStudioMajorVersion { get; private set; } = 0;
 		public static string LatestMsBuildPath { get; private set; } = null;
 
@@ -99,6 +101,12 @@ namespace UnrealBinaryBuilder
 			if (!string.IsNullOrEmpty(LatestMsBuildPath) && File.Exists(LatestMsBuildPath))
 			{
 				return LatestMsBuildPath;
+			}
+
+			string fallback2026 = TryFindMsBuildInKnownLocations("18", "2026");
+			if (fallback2026 != null)
+			{
+				return fallback2026;
 			}
 
 			string fallback2019 = TryFindMsBuildInKnownLocations("2019");
@@ -148,6 +156,7 @@ namespace UnrealBinaryBuilder
 			VisualStudio2017Available = false;
 			VisualStudio2019Available = false;
 			VisualStudio2022Available = false;
+			VisualStudio2026Available = false;
 			LatestVisualStudioMajorVersion = 0;
 			LatestMsBuildPath = null;
 
@@ -175,7 +184,7 @@ namespace UnrealBinaryBuilder
 
 			if (string.IsNullOrEmpty(LatestMsBuildPath))
 			{
-				TryFindMsBuildInKnownLocations("2022", "2019", "2017");
+				TryFindMsBuildInKnownLocations("18", "2026", "2022", "2019", "2017");
 			}
 		}
 
@@ -254,7 +263,11 @@ namespace UnrealBinaryBuilder
 
 			MsBuildPathsByMajorVersion[majorVersion] = msbuildPath;
 
-			if (majorVersion >= 17)
+			if (majorVersion >= 18)
+			{
+				VisualStudio2026Available = true;
+			}
+			else if (majorVersion == 17)
 			{
 				VisualStudio2022Available = true;
 			}
@@ -315,6 +328,13 @@ namespace UnrealBinaryBuilder
 
 			if (!string.IsNullOrEmpty(installationPath))
 			{
+				if (installationPath.Contains($"{Path.DirectorySeparatorChar}18{Path.DirectorySeparatorChar}") ||
+					installationPath.Contains("/18/") ||
+					installationPath.Contains($"{Path.DirectorySeparatorChar}2026") || installationPath.Contains("/2026"))
+				{
+					return 18;
+				}
+
 				if (installationPath.Contains($"{Path.DirectorySeparatorChar}2022") || installationPath.Contains("/2022"))
 				{
 					return 17;
@@ -337,7 +357,14 @@ namespace UnrealBinaryBuilder
 		private static string TryFindMsBuildInKnownLocations(params string[] yearFolders)
 		{
 			string programFilesx86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
-			if (string.IsNullOrEmpty(programFilesx86))
+			string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+
+			string[] searchRoots = new[] { programFiles, programFilesx86 }
+				.Where(p => !string.IsNullOrEmpty(p))
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToArray();
+
+			if (searchRoots.Length == 0)
 			{
 				return null;
 			}
@@ -349,28 +376,31 @@ namespace UnrealBinaryBuilder
 					continue;
 				}
 
-				string vsBasePath = Path.Combine(programFilesx86, "Microsoft Visual Studio", year);
-				if (!Directory.Exists(vsBasePath))
+				foreach (string root in searchRoots)
 				{
-					continue;
-				}
-
-				foreach (string edition in VisualStudioEditions)
-				{
-					string editionPath = Path.Combine(vsBasePath, edition);
-					if (!Directory.Exists(editionPath))
+					string vsBasePath = Path.Combine(root, "Microsoft Visual Studio", year);
+					if (!Directory.Exists(vsBasePath))
 					{
 						continue;
 					}
 
-					string msbuildPath = BuildMsBuildPathFromInstallation(editionPath);
-					if (!string.IsNullOrEmpty(msbuildPath))
+					foreach (string edition in VisualStudioEditions)
 					{
-						int majorVersion = MapYearToMajorVersion(year);
-						if (majorVersion > 0)
+						string editionPath = Path.Combine(vsBasePath, edition);
+						if (!Directory.Exists(editionPath))
 						{
-							RecordVisualStudioInstallation(majorVersion, msbuildPath);
-							return msbuildPath;
+							continue;
+						}
+
+						string msbuildPath = BuildMsBuildPathFromInstallation(editionPath);
+						if (!string.IsNullOrEmpty(msbuildPath))
+						{
+							int majorVersion = MapYearToMajorVersion(year);
+							if (majorVersion > 0)
+							{
+								RecordVisualStudioInstallation(majorVersion, msbuildPath);
+								return msbuildPath;
+							}
 						}
 					}
 				}
@@ -383,6 +413,9 @@ namespace UnrealBinaryBuilder
 		{
 			switch (year)
 			{
+				case "18":
+				case "2026":
+					return 18;
 				case "2022":
 					return 17;
 				case "2019":
@@ -566,6 +599,7 @@ namespace UnrealBinaryBuilder
 		{
 			return versionIdentifier switch
 			{
+				VisualStudioVersion2026 => "Visual Studio 2026",
 				VisualStudioVersion2022 => "Visual Studio 2022",
 				VisualStudioVersion2019 => "Visual Studio 2019",
 				VisualStudioVersion2017 => "Visual Studio 2017",
@@ -629,11 +663,13 @@ namespace UnrealBinaryBuilder
 		private static UBBUpdater unrealBinaryBuilderUpdater = null;
 		private bool bUpdateAvailable = false;
 		private bool bMissingVS2022WarningShown = false;
+		private bool bMissingVS2026WarningShown = false;
 
 		private readonly List<VisualStudioCompilerOption> _visualStudioCompilerOptions = new List<VisualStudioCompilerOption>
 		{
 			new VisualStudioCompilerOption(UnrealBinaryBuilderHelpers.VisualStudioVersion2019, UnrealBinaryBuilderHelpers.GetVisualStudioDisplayName(UnrealBinaryBuilderHelpers.VisualStudioVersion2019)),
-			new VisualStudioCompilerOption(UnrealBinaryBuilderHelpers.VisualStudioVersion2022, UnrealBinaryBuilderHelpers.GetVisualStudioDisplayName(UnrealBinaryBuilderHelpers.VisualStudioVersion2022))
+			new VisualStudioCompilerOption(UnrealBinaryBuilderHelpers.VisualStudioVersion2022, UnrealBinaryBuilderHelpers.GetVisualStudioDisplayName(UnrealBinaryBuilderHelpers.VisualStudioVersion2022)),
+			new VisualStudioCompilerOption(UnrealBinaryBuilderHelpers.VisualStudioVersion2026, UnrealBinaryBuilderHelpers.GetVisualStudioDisplayName(UnrealBinaryBuilderHelpers.VisualStudioVersion2026))
 		};
 
 		private bool _suppressCompilerSelectionChanged;
@@ -1488,13 +1524,10 @@ namespace UnrealBinaryBuilder
 								{
 									if (UnrealBinaryBuilderHelpers.IsUnrealEngine57OrAbove())
 									{
-										// UE5.7+ 使用 Engine\Source\Programs\AutomationTool\bin\Development\AutomationTool.exe
-										// 路径替换：从 Engine\Source\Programs\AutomationTool\bin\Development 替换为 \LocalBuilds\Engine
 										FinalBuildPath = Path.GetFullPath(AutomationExePath).Replace(@"\Engine\Source\Programs\AutomationTool\bin\Development", @"\LocalBuilds\Engine").Replace(Path.GetFileName(AutomationExePath), "");
 									}
 									else
 									{
-										// UE5.0-5.6 使用 AutomationTool.exe，路径替换应该使用 AUTOMATION_TOOL_NAME
 										FinalBuildPath = Path.GetFullPath(AutomationExePath).Replace(@$"\Engine\Binaries\DotNET\{UnrealBinaryBuilderHelpers.AUTOMATION_TOOL_NAME}", @"\LocalBuilds\Engine").Replace(Path.GetFileName(AutomationExePath), "");
 									}
 								}
@@ -1535,6 +1568,11 @@ namespace UnrealBinaryBuilder
 				}
 			}
 
+			if (bIsBuilding)
+			{
+				return;
+			}
+
 			if (currentProcessType == CurrentProcessType.BuildPlugin)
 			{
 				GameAnalyticsCSharp.AddProgressEnd("Build", "Plugin");
@@ -1555,6 +1593,11 @@ namespace UnrealBinaryBuilder
 					Growl.Clear("PluginBuild");
 					ShowToastMessage($"Finished plugin queue build with {PluginQueues.Children.Count} plugin(s)");
 				}
+			}
+
+			if (bIsBuilding)
+			{
+				return;
 			}
 
 			if (currentProcessType == CurrentProcessType.BuildUnrealEngine)
@@ -2119,8 +2162,14 @@ namespace UnrealBinaryBuilder
 			}
 
 			string selectedCompilerVersion = GetSelectedEngineCompilerVersion();
-			bool useVS2022 = SupportVisualStudio2022 && string.Equals(selectedCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase);
-			bool useVS2019 = SupportVisualStudio2019 && string.Equals(selectedCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase) && !useVS2022;
+			bool useVS2026 = SupportVisualStudio2026 && string.Equals(selectedCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2026, StringComparison.OrdinalIgnoreCase);
+			bool useVS2022 = SupportVisualStudio2022 && string.Equals(selectedCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase) && !useVS2026;
+			bool useVS2019 = SupportVisualStudio2019 && string.Equals(selectedCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase) && !useVS2026 && !useVS2022;
+
+			if (SupportVisualStudio2026)
+			{
+				CommandLineArgs += $" -set:VS2026={GetConditionalString(useVS2026)}";
+			}
 
 			if (SupportVisualStudio2022)
 			{
@@ -2440,6 +2489,8 @@ namespace UnrealBinaryBuilder
 
 		public bool SupportVisualStudio2022 => GetEngineValue() >= 4.27 && UnrealBinaryBuilderHelpers.VisualStudio2022Available;
 
+		public bool SupportVisualStudio2026 => GetEngineValue() >= 5.5 && UnrealBinaryBuilderHelpers.VisualStudio2026Available;
+
 		private void InitializeVisualStudioPreferences()
 		{
 			// Force a detection so availability flags are populated.
@@ -2455,10 +2506,20 @@ namespace UnrealBinaryBuilder
 				return;
 			}
 
+			bool supportVS2026 = SupportVisualStudio2026;
 			bool supportVS2022 = SupportVisualStudio2022;
 			bool supportVS2019 = SupportVisualStudio2019;
 
-			if (GetEngineValue() >= 4.27 && UnrealBinaryBuilderHelpers.VisualStudio2022Available == false && bMissingVS2022WarningShown == false)
+			if (GetEngineValue() >= 5.5 && UnrealBinaryBuilderHelpers.VisualStudio2026Available == false && bMissingVS2026WarningShown == false)
+			{
+				bMissingVS2026WarningShown = true;
+				if (UnrealBinaryBuilderHelpers.VisualStudio2022Available)
+				{
+					ShowToastMessage("未检测到 Visual Studio 2026。将尝试使用 Visual Studio 2022 继续编译。", LogViewer.EMessageType.Warning);
+				}
+			}
+
+			if (GetEngineValue() >= 4.27 && UnrealBinaryBuilderHelpers.VisualStudio2022Available == false && UnrealBinaryBuilderHelpers.VisualStudio2026Available == false && bMissingVS2022WarningShown == false)
 			{
 				bMissingVS2022WarningShown = true;
 				if (UnrealBinaryBuilderHelpers.VisualStudio2019Available)
@@ -2467,12 +2528,13 @@ namespace UnrealBinaryBuilder
 				}
 				else
 				{
-					ShowToastMessage("未检测到 Visual Studio 2022 或 Visual Studio 2019。请安装受支持的编译器后重试。", LogViewer.EMessageType.Error);
+					ShowToastMessage("未检测到 Visual Studio 2026、2022 或 2019。请安装受支持的编译器后重试。", LogViewer.EMessageType.Error);
 				}
 			}
 
 			List<VisualStudioCompilerOption> availableOptions = _visualStudioCompilerOptions
 				.Where(option =>
+					(option.Identifier == UnrealBinaryBuilderHelpers.VisualStudioVersion2026 && supportVS2026) ||
 					(option.Identifier == UnrealBinaryBuilderHelpers.VisualStudioVersion2022 && supportVS2022) ||
 					(option.Identifier == UnrealBinaryBuilderHelpers.VisualStudioVersion2019 && supportVS2019))
 				.ToList();
@@ -2524,9 +2586,11 @@ namespace UnrealBinaryBuilder
 
 			SettingsJSON.PreferredCompilerVersion = versionIdentifier;
 
+			bool isVS2026 = string.Equals(versionIdentifier, UnrealBinaryBuilderHelpers.VisualStudioVersion2026, StringComparison.OrdinalIgnoreCase);
 			bool isVS2022 = string.Equals(versionIdentifier, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase);
 			bool isVS2019 = string.Equals(versionIdentifier, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase);
 
+			SettingsJSON.bVS2026 = isVS2026;
 			SettingsJSON.bVS2022 = isVS2022;
 			SettingsJSON.bVS2019 = isVS2019;
 		}
@@ -2553,7 +2617,7 @@ namespace UnrealBinaryBuilder
 
 		private void UpdatePluginCompilerOptions()
 		{
-			if (PluginEngineVersionSelection == null || bUse2019Compiler == null || bUse2022Compiler == null)
+			if (PluginEngineVersionSelection == null || bUse2019Compiler == null || bUse2022Compiler == null || bUse2026Compiler == null)
 			{
 				return;
 			}
@@ -2562,12 +2626,19 @@ namespace UnrealBinaryBuilder
 
 			bool isUE427OrAbove = engineValue >= 4.27;
 			bool isUE5OrAbove = engineValue >= 5.0;
+			bool support2026 = engineValue >= 5.5 && UnrealBinaryBuilderHelpers.VisualStudio2026Available;
 			bool support2022 = isUE427OrAbove && UnrealBinaryBuilderHelpers.VisualStudio2022Available;
 			bool support2019 = (engineValue >= 4.25 && engineValue < 5.0 && UnrealBinaryBuilderHelpers.VisualStudio2019Available) ||
-							   (isUE427OrAbove && support2022 == false && UnrealBinaryBuilderHelpers.VisualStudio2019Available);
+							   (isUE427OrAbove && support2022 == false && support2026 == false && UnrealBinaryBuilderHelpers.VisualStudio2019Available);
 
+			bUse2026Compiler.IsEnabled = support2026;
 			bUse2019Compiler.IsEnabled = support2019;
 			bUse2022Compiler.IsEnabled = support2022;
+
+			if (support2026 == false && bUse2026Compiler.IsChecked == true)
+			{
+				bUse2026Compiler.IsChecked = false;
+			}
 
 			if (support2022 == false && bUse2022Compiler.IsChecked == true)
 			{
@@ -2579,11 +2650,15 @@ namespace UnrealBinaryBuilder
 				bUse2019Compiler.IsChecked = false;
 			}
 
-			if (support2022 && bUse2022Compiler.IsChecked != true && bUse2019Compiler.IsChecked != true)
+			if (support2026 && bUse2026Compiler.IsChecked != true && bUse2022Compiler.IsChecked != true && bUse2019Compiler.IsChecked != true)
+			{
+				bUse2026Compiler.IsChecked = true;
+			}
+			else if (support2022 && bUse2022Compiler.IsChecked != true && bUse2019Compiler.IsChecked != true && bUse2026Compiler.IsChecked != true)
 			{
 				bUse2022Compiler.IsChecked = true;
 			}
-			else if (support2019 && bUse2019Compiler.IsChecked != true && bUse2022Compiler.IsChecked != true)
+			else if (support2019 && bUse2019Compiler.IsChecked != true && bUse2022Compiler.IsChecked != true && bUse2026Compiler.IsChecked != true)
 			{
 				bUse2019Compiler.IsChecked = true;
 			}
@@ -2665,19 +2740,20 @@ namespace UnrealBinaryBuilder
 
 		private void PluginCompiler_Checked(object sender, RoutedEventArgs e)
 		{
-			if (sender == bUse2022Compiler && bUse2022Compiler.IsChecked == true)
+			if (sender == bUse2026Compiler && bUse2026Compiler.IsChecked == true)
 			{
-				if (bUse2019Compiler.IsChecked == true)
-				{
-					bUse2019Compiler.IsChecked = false;
-				}
+				bUse2022Compiler.IsChecked = false;
+				bUse2019Compiler.IsChecked = false;
+			}
+			else if (sender == bUse2022Compiler && bUse2022Compiler.IsChecked == true)
+			{
+				bUse2026Compiler.IsChecked = false;
+				bUse2019Compiler.IsChecked = false;
 			}
 			else if (sender == bUse2019Compiler && bUse2019Compiler.IsChecked == true)
 			{
-				if (bUse2022Compiler.IsChecked == true)
-				{
-					bUse2022Compiler.IsChecked = false;
-				}
+				bUse2026Compiler.IsChecked = false;
+				bUse2022Compiler.IsChecked = false;
 			}
 
 			UpdatePluginCompilerOptions();
@@ -2940,6 +3016,11 @@ namespace UnrealBinaryBuilder
 
 		private string GetSelectedPluginCompilerArgument()
 		{
+			if (bUse2026Compiler != null && bUse2026Compiler.IsEnabled && bUse2026Compiler.IsChecked == true)
+			{
+				return "-VS2026";
+			}
+
 			if (bUse2022Compiler != null && bUse2022Compiler.IsEnabled && bUse2022Compiler.IsChecked == true)
 			{
 				return "-VS2022";
@@ -2948,6 +3029,11 @@ namespace UnrealBinaryBuilder
 			if (bUse2019Compiler != null && bUse2019Compiler.IsEnabled && bUse2019Compiler.IsChecked == true)
 			{
 				return "-VS2019";
+			}
+
+			if (bUse2026Compiler != null && bUse2026Compiler.IsEnabled)
+			{
+				return "-VS2026";
 			}
 
 			if (bUse2022Compiler != null && bUse2022Compiler.IsEnabled)

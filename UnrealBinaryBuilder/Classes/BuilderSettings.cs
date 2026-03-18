@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -64,6 +64,7 @@ namespace UnrealBinaryBuilder.Classes
 		public bool bCompileDatasmithPlugins { get; set; }
 		public bool bVS2019 { get; set; }
 		public bool bVS2022 { get; set; }
+		public bool bVS2026 { get; set; }
 		public string PreferredCompilerVersion { get; set; }
 		public bool bShutdownPC { get; set; }
 		public bool bShutdownIfBuildSuccess { get; set; }
@@ -190,6 +191,7 @@ namespace UnrealBinaryBuilder.Classes
 			BSJ.bCompileDatasmithPlugins = false;
 			BSJ.bVS2019 = false;
 			BSJ.bVS2022 = true;
+			BSJ.bVS2026 = false;
 			BSJ.PreferredCompilerVersion = UnrealBinaryBuilderHelpers.VisualStudioVersion2022;
 			BSJ.bShutdownPC = false;
 			BSJ.bShutdownIfBuildSuccess = false;
@@ -340,6 +342,7 @@ namespace UnrealBinaryBuilder.Classes
 			BSJ.bCompileDatasmithPlugins = (bool)mainWindow.bCompileDatasmithPlugins.IsChecked;
 			string selectedCompiler = mainWindow.SettingsJSON?.PreferredCompilerVersion;
 			BSJ.PreferredCompilerVersion = selectedCompiler;
+			BSJ.bVS2026 = string.Equals(selectedCompiler, UnrealBinaryBuilderHelpers.VisualStudioVersion2026, StringComparison.OrdinalIgnoreCase);
 			BSJ.bVS2022 = string.Equals(selectedCompiler, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase);
 			BSJ.bVS2019 = string.Equals(selectedCompiler, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase);
 			BSJ.bShutdownPC = (bool)mainWindow.bShutdownWindows.IsChecked;
@@ -393,7 +396,11 @@ namespace UnrealBinaryBuilder.Classes
 
 			if (string.IsNullOrWhiteSpace(settings.PreferredCompilerVersion))
 			{
-				if (settings.bVS2022)
+				if (settings.bVS2026)
+				{
+					settings.PreferredCompilerVersion = UnrealBinaryBuilderHelpers.VisualStudioVersion2026;
+				}
+				else if (settings.bVS2022)
 				{
 					settings.PreferredCompilerVersion = UnrealBinaryBuilderHelpers.VisualStudioVersion2022;
 				}
@@ -406,10 +413,12 @@ namespace UnrealBinaryBuilder.Classes
 					settings.PreferredCompilerVersion = UnrealBinaryBuilderHelpers.VisualStudioVersion2022;
 					settings.bVS2022 = true;
 					settings.bVS2019 = false;
+					settings.bVS2026 = false;
 				}
 			}
 			else
 			{
+				settings.bVS2026 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2026, StringComparison.OrdinalIgnoreCase);
 				settings.bVS2022 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2022, StringComparison.OrdinalIgnoreCase);
 				settings.bVS2019 = string.Equals(settings.PreferredCompilerVersion, UnrealBinaryBuilderHelpers.VisualStudioVersion2019, StringComparison.OrdinalIgnoreCase);
 			}
